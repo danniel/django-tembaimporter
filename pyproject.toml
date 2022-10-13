@@ -1,3 +1,35 @@
+[tool.poetry]
+name = "django-tembaimporter"
+version = "0.1"
+description = "A Django app for RapidPro Temba to copy content from another install"
+authors = []
+readme = "README.rst"
+license = "Mozilla Public License 2.0"
+classifiers=[
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 4.0.6",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Mozilla Public License 2.0",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9"
+]
+packages = [
+    { include = "tembaimporter" },
+]
+
+[tool.poetry.urls]
+repository = "http://github.com/danniel/django-tembaimporter.git"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+django = "^4.0.6"
+rapidpro-python = {git = "https://github.com/danniel/rapidpro-python.git", rev = "danniel/patch-2.8.5"}
+
+[tool.poetry.dev-dependencies]
+
 [build-system]
-requires = ['setuptools>=40.8.0', 'wheel']
-build-backend = 'setuptools.build_meta:__legacy__'
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
