@@ -53,8 +53,8 @@ class Command(BaseCommand):
         # Copy data from the remote API
         total_fields = self._copy_fields()
         self.stdout.write(self.style.SUCCESS('Copied "%d" groups.\n' % total_fields))
-        # total_groups = self._copy_groups()
-        # self.stdout.write(self.style.SUCCESS('Copied "%d" groups.\n' % total_groups))
+        total_groups = self._copy_groups()
+        self.stdout.write(self.style.SUCCESS('Copied "%d" groups.\n' % total_groups))
 
     def _copy_fields(self):
         total = 0
@@ -70,6 +70,7 @@ class Command(BaseCommand):
                     'key': row.key,
                     'name': row.label,
                     'value_type': inverse_choice['value_type'][row.value_type],
+                    'created_by': self.default_user,
                 }
                 item = ContactField(**item_data)
                 creation_queue.append(item)
