@@ -15,7 +15,7 @@ logger.setLevel(logging.DEBUG)
 
 
 class Command(BaseCommand):
-    help = 'Import data from a remote API'
+    help = 'Import Temba data from a remote API'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -52,7 +52,7 @@ class Command(BaseCommand):
 
         # Copy data from the remote API
         total_fields = self._copy_fields()
-        self.stdout.write(self.style.SUCCESS('Copied "%d" groups.\n' % total_fields))
+        self.stdout.write(self.style.SUCCESS('Copied "%d" fields.\n' % total_fields))
         total_groups = self._copy_groups()
         self.stdout.write(self.style.SUCCESS('Copied "%d" groups.\n' % total_groups))
 
