@@ -78,7 +78,6 @@ class Command(BaseCommand):
                 }
                 item = ContactField(**item_data)
                 creation_queue.append(item)
-                batch_total += 1
             total += len(ContactField.objects.bulk_create(creation_queue))
         return total            
 
@@ -106,7 +105,6 @@ class Command(BaseCommand):
                 # print("ITEM DATA =", item_data)
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
-                batch_total += 1
             total += len(ContactGroup.objects.bulk_create(creation_queue))
         return total            
 
