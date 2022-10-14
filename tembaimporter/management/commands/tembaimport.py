@@ -65,6 +65,7 @@ class Command(BaseCommand):
         
         for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
+            batch_total = 0
             for row in read_batch:          
                 item_data = {
                     'key': row.key,
@@ -78,7 +79,9 @@ class Command(BaseCommand):
                 }
                 item = ContactField(**item_data)
                 creation_queue.append(item)
-            total += ContactField.objects.bulk_create(creation_queue)
+                batch_total += 1
+            ContactField.objects.bulk_create(creation_queue)
+            total += batch_total
         return total            
 
     def _copy_groups(self):
@@ -90,6 +93,7 @@ class Command(BaseCommand):
         
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
+            batch_total = 0
             for row in read_batch:
                 # print("API =", row.__dict__)          
                 item_data = {
@@ -101,6 +105,8 @@ class Command(BaseCommand):
                 # print("ITEM DATA =", item_data)
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
-            total += ContactGroup.objects.bulk_create(creation_queue)
+                batch_total += 1
+            ContactGroup.objects.bulk_create(creation_queue)
+            total += batch_total
         return total            
 
