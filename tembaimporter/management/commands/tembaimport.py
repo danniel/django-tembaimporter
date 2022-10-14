@@ -98,6 +98,10 @@ class Command(BaseCommand):
                     'name': row.name,
                     'query': row.query,
                     'status': inverse_choice['status'][row.status],
+                    'is_system': False,
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
                 }
                 # print("ITEM DATA =", item_data)
                 item = ContactGroup(**item_data)
