@@ -71,6 +71,7 @@ class Command(BaseCommand):
                     'name': row.label,
                     'value_type': inverse_choice['value_type'][row.value_type],
                     'created_by': self.default_user,
+                    'modified_by': self.default_user,
                 }
                 item = ContactField(**item_data)
                 creation_queue.append(item)
