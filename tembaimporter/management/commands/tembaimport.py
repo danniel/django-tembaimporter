@@ -56,25 +56,37 @@ class Command(BaseCommand):
         copy_result = self._copy_groups()
         self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
 
+    @staticmethod
+    def inverse_choices(mapping):
+        """ Inverse lookup to find the CHOICES key from the provided value """
+        result = {}
+        for row in mapping:
+            result[row[0]] = {v: k for k, v in row[1]}
+        return result
+
+    @property
+    def default_fields(self):
+        return {
+            'is_system': False,
+            'org': self.default_org,
+            'created_by': self.default_user,
+            'modified_by': self.default_user,
+        }
+
     def _copy_fields(self):
         total = 0
-        # Inverse lookup to find the CHOICES key from the provided value
-        inverse_choice = {}
-        inverse_choice['value_type'] = {
-            v: k for k, v in serializers.ContactFieldReadSerializer.VALUE_TYPES.items()}
+        inverse_choice = Command.inverse_choices(
+            (("value_type", serializers.ContactFieldReadSerializer.VALUE_TYPES.items()), ))
         
         for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:          
                 item_data = {
+                    **self.default_fields,
                     'key': row.key,
                     'name': row.label,
                     'value_type': inverse_choice['value_type'][row.value_type],
                     'show_in_table': row.pinned,
-                    'is_system': False,
-                    'org': self.default_org,
-                    'created_by': self.default_user,
-                    'modified_by': self.default_user,
                 }
                 item = ContactField(**item_data)
                 creation_queue.append(item)
@@ -83,26 +95,19 @@ class Command(BaseCommand):
 
     def _copy_groups(self):
         total = 0
-        # Inverse lookup to find the CHOICES key from the provided value
-        inverse_choice = {}
-        inverse_choice['status'] = {
-            v: k for k, v in serializers.ContactGroupReadSerializer.STATUSES.items()}
+        inverse_choice = Command.inverse_choices(
+            (("status", serializers.ContactFieldReadSerializer.VALUE_TYPES.items()), ))
         
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:
-                # print("API =", row.__dict__)          
                 item_data = {
+                    **self.default_fields,
                     'uuid': row.uuid,
                     'name': row.name,
                     'query': row.query,
                     'status': inverse_choice['status'][row.status],
-                    'is_system': False,
-                    'org': self.default_org,
-                    'created_by': self.default_user,
-                    'modified_by': self.default_user,
                 }
-                # print("ITEM DATA =", item_data)
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
             total += len(ContactGroup.objects.bulk_create(creation_queue))
