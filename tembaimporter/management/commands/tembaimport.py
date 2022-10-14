@@ -51,10 +51,10 @@ class Command(BaseCommand):
         self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
 
         # Copy data from the remote API
-        total_fields = self._copy_fields()
-        self.stdout.write(self.style.SUCCESS('Copied "%d" fields.\n' % total_fields))
-        total_groups = self._copy_groups()
-        self.stdout.write(self.style.SUCCESS('Copied "%d" groups.\n' % total_groups))
+        copy_result = self._copy_fields()
+        self.stdout.write(self.style.SUCCESS('Copied %d fields.\n' % copy_result))
+        copy_result = self._copy_groups()
+        self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
 
     def _copy_fields(self):
         total = 0
