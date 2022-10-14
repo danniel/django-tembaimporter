@@ -96,7 +96,7 @@ class Command(BaseCommand):
     def _copy_groups(self):
         total = 0
         inverse_choice = Command.inverse_choices(
-            (("status", serializers.ContactFieldReadSerializer.VALUE_TYPES.items()), ))
+            (("status", serializers.ContactGroupReadSerializer.STATUSES.items()), ))
         
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
