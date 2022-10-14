@@ -71,6 +71,7 @@ class Command(BaseCommand):
                     'name': row.label,
                     'value_type': inverse_choice['value_type'][row.value_type],
                     'show_in_table': row.pinned,
+                    'is_system': False,
                     'org': self.default_org,
                     'created_by': self.default_user,
                     'modified_by': self.default_user,
