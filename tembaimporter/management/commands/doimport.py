@@ -70,6 +70,8 @@ class Command(BaseCommand):
                     'key': row.key,
                     'name': row.label,
                     'value_type': inverse_choice['value_type'][row.value_type],
+                    'show_in_table': row.pinned,
+                    'org': self.default_org,
                     'created_by': self.default_user,
                     'modified_by': self.default_user,
                 }
