@@ -8,6 +8,7 @@ from temba_client.v2 import TembaClient
 from temba.api.v2 import serializers
 from temba.orgs.models import Org
 from temba.contacts.models import ContactGroup, ContactField
+from temba.archives.models import Archive
 
 
 logger = logging.getLogger('temba_client')
@@ -16,14 +17,6 @@ logger.setLevel(logging.DEBUG)
 
 class Command(BaseCommand):
     help = 'Import Temba data from a remote API'
-
-    def add_arguments(self, parser):
-        parser.add_argument(
-            'api_url', type=str, 
-            help='Remote API host (ie: http://rapidpro.ilhasoft.mobi)')
-        parser.add_argument(
-            'api_key', type=str, 
-            help='Remote API key (ie: abcdef1234567890abcdef1234567890)')
 
     @staticmethod
     def clean_api_url(url):
@@ -36,25 +29,6 @@ class Command(BaseCommand):
         if not key:
             return ''
         return key.lower().removeprefix('token').strip()
-
-    def handle(self, *args, **options):
-        api_url = Command.clean_api_url(
-            options.get('api_url', os.environ.get('REMOTE_API_URL', '')))
-        api_key = Command.clean_api_key(
-            options.get('api_key', os.environ.get('REMOTE_API_KEY', '')))
-        self.client = TembaClient(api_url, api_key)
-        
-        # Use the first admin user we can find in the destination database
-        self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]
-        
-        # Use the first organization we can find in the destination database
-        self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
-
-        # Copy data from the remote API
-        copy_result = self._copy_fields()
-        self.stdout.write(self.style.SUCCESS('Copied %d fields.\n' % copy_result))
-        copy_result = self._copy_groups()
-        self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
 
     @staticmethod
     def inverse_choices(mapping):
@@ -72,6 +46,66 @@ class Command(BaseCommand):
             'created_by': self.default_user,
             'modified_by': self.default_user,
         }
+
+    def __init__(self, *args, **kwargs):
+        self.default_org = None
+        self.default_user = None
+        super().__init__(*args, **kwargs)
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            'api_url', type=str, 
+            help='Remote API host (ie: http://rapidpro.ilhasoft.mobi)')
+        parser.add_argument(
+            'api_key', type=str, 
+            help='Remote API key (ie: abcdef1234567890abcdef1234567890)')
+
+    def handle(self, *args, **options):
+        api_url = Command.clean_api_url(
+            options.get('api_url', os.environ.get('REMOTE_API_URL', '')))
+        api_key = Command.clean_api_key(
+            options.get('api_key', os.environ.get('REMOTE_API_KEY', '')))
+        self.client = TembaClient(api_url, api_key)
+        
+        # Use the first admin user we can find in the destination database
+        self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]
+        
+        # Use the first organization we can find in the destination database
+        self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
+
+        # Copy data from the remote API:
+
+        copy_result = self._copy_archives()
+        self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
+
+        copy_result = self._copy_fields()
+        self.stdout.write(self.style.SUCCESS('Copied %d fields.\n' % copy_result))
+
+        copy_result = self._copy_groups()
+        self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
+
+    def _copy_archives(self):
+        total = 0
+        inverse_choice = Command.inverse_choices(
+            (("period", serializers.ArchiveReadSerializer.PERIODS.items()), ))
+        
+        for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:          
+                item_data = {
+                    'org': self.default_org,
+                    'archive_type': row.archive_type,
+                    'start_date': row.start_date,
+                    'period': inverse_choice['period'][row.period],
+                    'record_count': row.record_count,
+                    'size': row.size,
+                    'hash': row.hash,
+                    'download_url': row.download_url,
+                }
+                item = Archive(**item_data)
+                creation_queue.append(item)
+            total += len(Archive.objects.bulk_create(creation_queue))
+        return total            
 
     def _copy_fields(self):
         total = 0
