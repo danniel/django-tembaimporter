@@ -164,7 +164,9 @@ class Command(BaseCommand):
             creation_queue = []
             for row in read_batch:
                 item_data = {
-                    **self.default_fields,
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
                     'uuid': row.uuid,
                     'name': row.name,
                     'language': row.language,
