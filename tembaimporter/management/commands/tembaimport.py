@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from temba_client.v2 import TembaClient
 from temba.api.v2 import serializers
 from temba.orgs.models import Org
-from temba.contacts.models import ContactGroup, ContactField
+from temba.contacts.models import ContactGroup, ContactField, Contact
 from temba.archives.models import Archive
 
 
@@ -73,16 +73,21 @@ class Command(BaseCommand):
         # Use the first organization we can find in the destination database
         self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
 
-        # Copy data from the remote API:
-
-        copy_result = self._copy_archives()
-        self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
+        # Copy data from the remote API
+        # The order in which we copy the data is important because of object relationships
 
         copy_result = self._copy_fields()
         self.stdout.write(self.style.SUCCESS('Copied %d fields.\n' % copy_result))
 
         copy_result = self._copy_groups()
         self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
+
+        copy_result = self._copy_contacts()
+        self.stdout.write(self.style.SUCCESS('Copied %d contacts.\n' % copy_result))
+
+        copy_result = self._copy_archives()
+        self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
+
 
     def _copy_archives(self):
         total = 0
@@ -146,4 +151,35 @@ class Command(BaseCommand):
                 creation_queue.append(item)
             total += len(ContactGroup.objects.bulk_create(creation_queue))
         return total            
+
+    def _copy_contacts(self):
+        total = 0
+        inverse_choice = Command.inverse_choices(
+            (("status", serializers.ContactReadSerializer.STATUSES.items()), ))
+        
+        for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    **self.default_fields,
+                    'uuid': row.uuid,
+                    'name': row.name,
+                    'language': row.language,
+                    'fields': row.fields,
+                    'blocked': row.blocked,
+                    'stopped': row.stopped,
+                    'created_on': row.created_on,
+                    'modified_on': row.modified_on,
+                    'last_seen_on': row.last_seen_on,
+                    # The 'status' field was added to the API in Temba v7.3.58 so it might be missing from older installs
+                    'status': inverse_choice['status'][row.status] if hasattr(row, 'status') else None,
+                }
+
+                #TODO: groups & urns
+                
+                item = Contact(**item_data)
+                creation_queue.append(item)
+            total += len(Contact.objects.bulk_create(creation_queue))
+        return total            
+
 
