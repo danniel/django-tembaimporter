@@ -171,14 +171,17 @@ class Command(BaseCommand):
                     'name': row.name,
                     'language': row.language,
                     'fields': row.fields,
-                    'blocked': row.blocked,
-                    'stopped': row.stopped,
                     'created_on': row.created_on,
                     'modified_on': row.modified_on,
                     'last_seen_on': row.last_seen_on,
-                    # The 'status' field was added to the API in Temba v7.3.58 so it might be missing from older installs
-                    'status': inverse_choice['status'][row.status] if hasattr(row, 'status') and row.status else None,
                 }
+                if not hasattr(row, 'status'):
+                    # The remote API is a Temba install older than v7.3.58 which doesn't have a status field
+                    item_data |= {
+                        'status': Contact.STATUS_BLOCKED if row.blocked else Contact.STATUS_STOPPED if row.stopped else Contact.STATUS_ACTIVE}
+                else:
+                    # The remote API is newer Temba install
+                    item_data |= {'status': inverse_choice['status'][row.status] if row.status else None}
 
                 #TODO: groups & urns
                 
