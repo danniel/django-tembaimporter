@@ -8,6 +8,7 @@ from temba_client.v2 import TembaClient
 from temba.api.v2 import serializers
 from temba.orgs.models import Org
 from temba.contacts.models import ContactGroup, ContactField, Contact
+from temba.campaigns.models import Campaign
 from temba.archives.models import Archive
 
 
@@ -88,6 +89,8 @@ class Command(BaseCommand):
         copy_result = self._copy_archives()
         self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
 
+        copy_result = self._copy_campaigns()
+        self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
 
     def _copy_archives(self):
         total = 0
@@ -182,4 +185,19 @@ class Command(BaseCommand):
             total += len(Contact.objects.bulk_create(creation_queue))
         return total            
 
-
+    def _copy_campaigns(self):
+        total = 0
+        for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'uuid': row.uuid,
+                    'name': row.name,
+                    'archived': row.archived,
+                    'created_on': row.created_on,
+                    'group__pk': row.group['uuid'],
+                }
+                item = Campaign(**item_data)
+                creation_queue.append(item)
+            total += len(Campaign.objects.bulk_create(creation_queue))
+        return total            
