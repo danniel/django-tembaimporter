@@ -175,7 +175,7 @@ class Command(BaseCommand):
                     'modified_on': row.modified_on,
                     'last_seen_on': row.last_seen_on,
                 }
-                if not hasattr(row, 'status') or row.status in None:
+                if not hasattr(row, 'status') or row.status is None:
                     # The remote API is a Temba install older than v7.3.58 which doesn't have a status field
                     item_data |= {
                         'status': Contact.STATUS_BLOCKED if row.blocked else Contact.STATUS_STOPPED if row.stopped else Contact.STATUS_ACTIVE}
