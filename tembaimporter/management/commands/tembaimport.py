@@ -175,7 +175,7 @@ class Command(BaseCommand):
                     'modified_on': row.modified_on,
                     'last_seen_on': row.last_seen_on,
                     # The 'status' field was added to the API in Temba v7.3.58 so it might be missing from older installs
-                    'status': inverse_choice['status'][row.status] if hasattr(row, 'status') else None,
+                    'status': inverse_choice['status'][row.status] if hasattr(row, 'status') and row.status else None,
                 }
 
                 #TODO: groups & urns
