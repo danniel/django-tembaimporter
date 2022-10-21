@@ -198,7 +198,7 @@ class Command(BaseCommand):
                 creation_queue.append(item)
 
                 contact_group_uuids[row.uuid] = []
-                for g in item_data.groups:
+                for g in row.groups:
                     contact_group_uuids[row.uuid].append(g.uuid)
 
             contacts_created = Contact.objects.bulk_create(creation_queue)
