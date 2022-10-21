@@ -149,18 +149,28 @@ class Command(BaseCommand):
                     'name': row.name,
                     'query': row.query,
                     'status': inverse_choice['status'][row.status],
+                    # TODO:
+                    # The API doesn't give us the group type so we assume they're all 'Active'
+                    'group_type': 'A',
                 }
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
             total += len(ContactGroup.objects.bulk_create(creation_queue))
         return total            
 
+    def _get_groups_uuid_id():
+        # Retrieve all existing group uuids and their corresponding ids
+        return ContactGroup.objects.all().values_list('uuid', 'id', named=True)
+
     def _copy_contacts(self):
         total = 0
         inverse_choice = Command.inverse_choices(
             (("status", serializers.ContactReadSerializer.STATUSES.items()), ))
+
+        groups_uuid_id = self._get_groups_uuid_id()
         
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
+            contact_group_uuids = {}
             creation_queue = []
             for row in read_batch:
                 item_data = {
@@ -183,11 +193,26 @@ class Command(BaseCommand):
                     # The remote API is newer Temba install
                     item_data |= {'status': inverse_choice['status'][row.status] if row.status else None}
 
-                #TODO: groups & urns
-                
+                #TODO: URNs are censored. Will resume work on this when the source Org will not hide phone numbers
                 item = Contact(**item_data)
                 creation_queue.append(item)
-            total += len(Contact.objects.bulk_create(creation_queue))
+
+                contact_group_uuids[row.uuid] = []
+                for g in item_data.groups:
+                    contact_group_uuids[row.uuid].append(g.uuid)
+
+            contacts_created = Contact.objects.bulk_create(creation_queue)
+            total += len(contacts_created)
+
+            # Add the m2m groups for each created contact
+            group_through_queue = []
+            for contact in contacts_created:
+                for g in contact_group_uuids[contact.uuid]:
+                    gid = groups_uuid_id.get(uuid=g.uuid)
+                    # Use the Django's "through" table and bulk add the contact_id + group_id pairs
+                    group_through_queue.append(Contact.groups.through(contact_id=contact.id, group_id=gid))
+            Contact.groups.through.objects.bulk_create(group_through_queue)
+
         return total            
 
     def _copy_campaigns(self):
