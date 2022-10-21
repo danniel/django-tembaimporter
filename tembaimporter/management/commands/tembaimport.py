@@ -158,7 +158,7 @@ class Command(BaseCommand):
             total += len(ContactGroup.objects.bulk_create(creation_queue))
         return total            
 
-    def _get_groups_uuid_id():
+    def _get_groups_uuid_id(self):
         # Retrieve all existing group uuids and their corresponding ids
         return ContactGroup.objects.all().values_list('uuid', 'id', named=True)
 
