@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from temba_client.v2 import TembaClient
 from temba.api.v2 import serializers
 from temba.orgs.models import Org
-from temba.contacts.models import ContactGroup, ContactField, Contact
+from temba.contacts.models import ContactGroup, ContactField, Contact, ContactGroupCount
 from temba.campaigns.models import Campaign
 from temba.archives.models import Archive
 
@@ -60,6 +60,7 @@ class Command(BaseCommand):
         parser.add_argument(
             'api_key', type=str, 
             help='Remote API key (ie: abcdef1234567890abcdef1234567890)')
+        parser.add_argument('--flush', action='store_true', help="Flush existing records")
 
     def handle(self, *args, **options):
         api_url = Command.clean_api_url(
@@ -73,6 +74,9 @@ class Command(BaseCommand):
         
         # Use the first organization we can find in the destination database
         self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
+
+        if options.get('flush'):
+            self._flush_records()
 
         # Copy data from the remote API
         # The order in which we copy the data is important because of object relationships
@@ -91,6 +95,12 @@ class Command(BaseCommand):
 
         copy_result = self._copy_campaigns()
         self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
+
+    def _flush_records(self):
+        ContactField.objects.all().delete()
+        Contact.objects.all().delete()
+        ContactGroupCount.objects.all().delete()
+        ContactGroup.objects.all().delete()
 
     def _copy_archives(self):
         total = 0
