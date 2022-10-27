@@ -219,8 +219,8 @@ class Command(BaseCommand):
             # Add the m2m groups for each created contact
             group_through_queue = []
             for contact in contacts_created:
-                for g in contact_group_uuids[contact.uuid]:
-                    gid = groups_uuid_id.get(uuid=g.uuid)
+                for guuid in contact_group_uuids[contact.uuid]:
+                    gid = groups_uuid_id.get(uuid=guuid)
                     # Use the Django's "through" table and bulk add the contact_id + group_id pairs
                     group_through_queue.append(Contact.groups.through(contact_id=contact.id, group_id=gid))
             Contact.groups.through.objects.bulk_create(group_through_queue)
