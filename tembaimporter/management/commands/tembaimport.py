@@ -150,6 +150,8 @@ class Command(BaseCommand):
         inverse_choice = Command.inverse_choices(
             (("status", serializers.ContactGroupReadSerializer.STATUSES.items()), ))
         
+        ContactGroup.create_system_groups(self.default_org)
+
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:
@@ -160,8 +162,8 @@ class Command(BaseCommand):
                     'query': row.query,
                     'status': inverse_choice['status'][row.status],
                     # TODO:
-                    # The API doesn't give us the group type so we assume they're all 'Active'
-                    'group_type': 'A',
+                    # The API doesn't give us the group type so we assume they're all 'Manual'
+                    'group_type': ContactGroup.TYPE_MANUAL,
                 }
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
@@ -211,9 +213,7 @@ class Command(BaseCommand):
                 for g in row.groups:
                     contact_group_uuids[row.uuid].append(g.uuid)
 
-            # Create contacts one by one (batch_size=1) because of a postgresql stored procedure 
-            # which fails when the query has more contacts
-            contacts_created = Contact.objects.bulk_create(creation_queue, batch_size=1)
+            contacts_created = Contact.objects.bulk_create(creation_queue)
             total += len(contacts_created)
 
             # Add the m2m groups for each created contact
