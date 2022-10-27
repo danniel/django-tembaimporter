@@ -211,7 +211,9 @@ class Command(BaseCommand):
                 for g in row.groups:
                     contact_group_uuids[row.uuid].append(g.uuid)
 
-            contacts_created = Contact.objects.bulk_create(creation_queue)
+            # Create contacts one by one (batch_size=1) because of a postgresql stored procedure 
+            # which fails when the query has more contacts
+            contacts_created = Contact.objects.bulk_create(creation_queue, batch_size=1)
             total += len(contacts_created)
 
             # Add the m2m groups for each created contact
