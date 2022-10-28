@@ -1,5 +1,7 @@
 import os
 import logging
+from signal import pause
+import time
 from typing import Callable
 
 from django.core.management.base import BaseCommand, CommandError
@@ -48,9 +50,16 @@ class Command(BaseCommand):
             'modified_by': self.default_user,
         }
 
+    def throttle(self):
+        if self.throttle_requests:
+            SECONDS = 5
+            self.stdout.write("Sleeping %d seconds..." % SECONDS)
+            time.sleep(SECONDS)
+
     def __init__(self, *args, **kwargs):
         self.default_org = None
         self.default_user = None
+        self.throttle_requests = False
         super().__init__(*args, **kwargs)
 
     def add_arguments(self, parser):
@@ -60,7 +69,12 @@ class Command(BaseCommand):
         parser.add_argument(
             'api_key', type=str, 
             help='Remote API key (ie: abcdef1234567890abcdef1234567890)')
-        parser.add_argument('--flush', action='store_true', help="Flush existing records")
+        parser.add_argument(
+            '--flush', action='store_true', 
+            help="Flush existing records")
+        parser.add_argument(
+            '--throttle', action='store_true', 
+            help="Slow down the API interrogations")
 
     def handle(self, *args, **options):
         api_url = Command.clean_api_url(
@@ -74,6 +88,9 @@ class Command(BaseCommand):
         
         # Use the first organization we can find in the destination database
         self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
+        
+        if options.get('throttle'):
+            self.throttle_requests = True
 
         if options.get('flush'):
             self._flush_records()
@@ -93,8 +110,8 @@ class Command(BaseCommand):
         copy_result = self._copy_archives()
         self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
 
-        copy_result = self._copy_campaigns()
-        self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
+        # copy_result = self._copy_campaigns()
+        # self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
 
     def _flush_records(self):
         ContactField.objects.all().delete()
@@ -123,6 +140,7 @@ class Command(BaseCommand):
                 item = Archive(**item_data)
                 creation_queue.append(item)
             total += len(Archive.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_fields(self):
@@ -143,6 +161,7 @@ class Command(BaseCommand):
                 item = ContactField(**item_data)
                 creation_queue.append(item)
             total += len(ContactField.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_groups(self):
@@ -168,6 +187,7 @@ class Command(BaseCommand):
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
             total += len(ContactGroup.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _get_groups_uuid_id(self):
@@ -224,6 +244,8 @@ class Command(BaseCommand):
                     # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
                     group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
             Contact.groups.through.objects.bulk_create(group_through_queue)
+
+            self.throttle()
 
         return total            
 
