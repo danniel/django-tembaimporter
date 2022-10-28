@@ -220,8 +220,8 @@ class Command(BaseCommand):
             group_through_queue = []
             for contact in contacts_created:
                 for guuid in contact_group_uuids[contact.uuid]:
-                    gid = groups_uuid_id.get(uuid=guuid)
-                    # Use the Django's "through" table and bulk add the contact_id + group_id pairs
+                    gid = groups_uuid_id.get(uuid=guuid).id
+                    # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
                     group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
             Contact.groups.through.objects.bulk_create(group_through_queue)
 
