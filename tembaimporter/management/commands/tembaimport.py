@@ -1,18 +1,19 @@
-import os
 import logging
-from signal import pause
+import os
 import time
-from typing import Callable
+from collections.abc import Iterable
+from typing import Any
 
-from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth.models import User
-from temba_client.v2 import TembaClient
+from django.core.management.base import BaseCommand
+from django.db.models.query import QuerySet
 from temba.api.v2 import serializers
-from temba.orgs.models import Org
-from temba.contacts.models import ContactGroup, ContactField, Contact, ContactGroupCount
-from temba.campaigns.models import Campaign
 from temba.archives.models import Archive
-
+from temba.campaigns.models import Campaign
+from temba.contacts.models import (Contact, ContactField, ContactGroup,
+                                   ContactGroupCount)
+from temba.orgs.models import Org
+from temba_client.v2 import TembaClient
 
 logger = logging.getLogger('temba_client')
 logger.setLevel(logging.DEBUG)
@@ -22,19 +23,19 @@ class Command(BaseCommand):
     help = 'Import Temba data from a remote API'
 
     @staticmethod
-    def clean_api_url(url):
+    def clean_api_url(url: str) -> str:
         if not url:
             return ''
         return url.removesuffix('/').removesuffix('/api/v2').strip()
 
     @staticmethod
-    def clean_api_key(key):
+    def clean_api_key(key: str) -> str:
         if not key:
             return ''
         return key.lower().removeprefix('token').strip()
 
     @staticmethod
-    def inverse_choices(mapping):
+    def inverse_choices(mapping: Iterable[tuple[str, Iterable]]) -> list[dict[str, str]]:
         """ Inverse lookup to find the CHOICES key from the provided value """
         result = {}
         for row in mapping:
@@ -42,7 +43,7 @@ class Command(BaseCommand):
         return result
 
     @property
-    def default_fields(self):
+    def default_fields(self) -> dict[str, Any]:
         return {
             'is_system': False,
             'org': self.default_org,
@@ -50,7 +51,7 @@ class Command(BaseCommand):
             'modified_by': self.default_user,
         }
 
-    def throttle(self):
+    def throttle(self) -> None:
         if self.throttle_requests:
             SECONDS = 5
             self.stdout.write("Sleeping %d seconds..." % SECONDS)
@@ -84,10 +85,12 @@ class Command(BaseCommand):
         self.client = TembaClient(api_url, api_key)
         
         # Use the first admin user we can find in the destination database
-        self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]
+        self.default_user = User.objects.filter(
+            is_superuser=True, is_active=True).all()[0]  # type: User
         
         # Use the first organization we can find in the destination database
-        self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]
+        self.default_org = Org.objects.filter(
+            is_active=True, is_anon=False).all()[0]  # type: Org
         
         if options.get('throttle'):
             self.throttle_requests = True
@@ -113,13 +116,13 @@ class Command(BaseCommand):
         # copy_result = self._copy_campaigns()
         # self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
 
-    def _flush_records(self):
+    def _flush_records(self) -> None:
         ContactField.objects.all().delete()
         Contact.objects.all().delete()
         ContactGroupCount.objects.all().delete()
         ContactGroup.objects.all().delete()
 
-    def _copy_archives(self):
+    def _copy_archives(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
             (("period", serializers.ArchiveReadSerializer.PERIODS.items()), ))
@@ -143,7 +146,7 @@ class Command(BaseCommand):
             self.throttle()
         return total            
 
-    def _copy_fields(self):
+    def _copy_fields(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
             (("value_type", serializers.ContactFieldReadSerializer.VALUE_TYPES.items()), ))
@@ -164,7 +167,7 @@ class Command(BaseCommand):
             self.throttle()
         return total            
 
-    def _copy_groups(self):
+    def _copy_groups(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
             (("status", serializers.ContactGroupReadSerializer.STATUSES.items()), ))
@@ -190,11 +193,11 @@ class Command(BaseCommand):
             self.throttle()
         return total            
 
-    def _get_groups_uuid_id(self):
+    def _get_groups_uuid_id(self) -> QuerySet:
         # Retrieve all existing group uuids and their corresponding ids
         return ContactGroup.objects.all().values_list('uuid', 'id', named=True)
 
-    def _copy_contacts(self):
+    def _copy_contacts(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
             (("status", serializers.ContactReadSerializer.STATUSES.items()), ))
@@ -249,7 +252,7 @@ class Command(BaseCommand):
 
         return total            
 
-    def _copy_campaigns(self):
+    def _copy_campaigns(self) -> int:
         total = 0
         for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
