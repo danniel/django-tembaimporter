@@ -11,7 +11,7 @@ from temba.api.v2 import serializers
 from temba.archives.models import Archive
 from temba.campaigns.models import Campaign
 from temba.contacts.models import (Contact, ContactField, ContactGroup,
-                                   ContactGroupCount)
+                                   ContactGroupCount, ContactURN, URN)
 from temba.orgs.models import Org
 from temba_client.v2 import TembaClient
 
@@ -206,6 +206,7 @@ class Command(BaseCommand):
         
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
             contact_group_uuids = {}
+            contact_urns = {}
             creation_queue = []
             for row in read_batch:
                 item_data = {
@@ -232,6 +233,10 @@ class Command(BaseCommand):
                 item = Contact(**item_data)
                 creation_queue.append(item)
 
+                # current contact's URNs
+                contact_urns[row.uuid] = row.urns
+
+                # current contact's group memberships
                 contact_group_uuids[row.uuid] = []
                 for g in row.groups:
                     contact_group_uuids[row.uuid].append(g.uuid)
@@ -239,14 +244,25 @@ class Command(BaseCommand):
             contacts_created = Contact.objects.bulk_create(creation_queue)
             total += len(contacts_created)
 
-            # Add the m2m groups for each created contact
-            group_through_queue = []
+            group_through_queue = []  # the m2m "through" objects
+            contact_urns_queue = []  # the ContactURN objects
             for contact in contacts_created:
                 for guuid in contact_group_uuids[contact.uuid]:
                     gid = groups_uuid_id.get(uuid=guuid).id
                     # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
                     group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
+                for urn in contact_urns[contact.uuid]:
+                    urn_scheme, urn_path, urn_query, urn_display = URN.to_parts(urn)
+                    contact_urns_queue.append(ContactURN(
+                        org=self.default_org,
+                        contact=contact,
+                        scheme=urn_scheme,
+                        path=urn_path,
+                        identity=urn,
+                        display=urn_display
+                    ))
             Contact.groups.through.objects.bulk_create(group_through_queue)
+            ContactURN.objects.bulk_create(contact_urns_queue)
 
             self.throttle()
 
