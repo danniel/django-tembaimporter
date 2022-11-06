@@ -140,7 +140,7 @@ class Command(BaseCommand):
         inverse_choice = Command.inverse_choices(
             (("period", serializers.ArchiveReadSerializer.PERIODS.items()), ))
         
-        for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
+        for read_batch in self.client.get_archives().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:          
                 item_data = {
