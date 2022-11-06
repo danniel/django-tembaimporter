@@ -129,6 +129,7 @@ class Command(BaseCommand):
         # self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
 
     def _flush_records(self) -> None:
+        ContactURN.objects.all().delete()
         Contact.objects.all().delete()
         ContactGroupCount.objects.all().delete()
         ContactGroup.objects.all().delete()
