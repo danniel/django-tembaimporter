@@ -101,26 +101,38 @@ class Command(BaseCommand):
         # Copy data from the remote API
         # The order in which we copy the data is important because of object relationships
 
-        copy_result = self._copy_fields()
-        self.stdout.write(self.style.SUCCESS('Copied %d fields.\n' % copy_result))
+        if ContactField.objects.count():
+            self.stdout.write(self.style.NOTICE('Skipping contact fields\n'))
+        else:
+            copy_result = self._copy_fields()
+            self.stdout.write(self.style.SUCCESS('Copied %d fields.\n' % copy_result))
 
-        copy_result = self._copy_groups()
-        self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
+        if ContactGroup.objects.count():
+            self.stdout.write(self.style.NOTICE('Skipping contact groups\n'))
+        else:
+            copy_result = self._copy_groups()
+            self.stdout.write(self.style.SUCCESS('Copied %d groups.\n' % copy_result))
 
-        copy_result = self._copy_contacts()
-        self.stdout.write(self.style.SUCCESS('Copied %d contacts.\n' % copy_result))
+        if Contact.objects.count():
+            self.stdout.write(self.style.NOTICE('Skipping contacts\n'))
+        else:
+            copy_result = self._copy_contacts()
+            self.stdout.write(self.style.SUCCESS('Copied %d contacts.\n' % copy_result))
 
-        copy_result = self._copy_archives()
-        self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
+        if Archive.objects.count():
+            self.stdout.write(self.style.NOTICE('Skipping archives\n'))
+        else:
+            copy_result = self._copy_archives()
+            self.stdout.write(self.style.SUCCESS('Copied %d archives.\n' % copy_result))
 
         # copy_result = self._copy_campaigns()
         # self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
 
     def _flush_records(self) -> None:
-        ContactField.objects.all().delete()
         Contact.objects.all().delete()
         ContactGroupCount.objects.all().delete()
         ContactGroup.objects.all().delete()
+        ContactField.objects.all().delete()
 
     def _copy_archives(self) -> int:
         total = 0
