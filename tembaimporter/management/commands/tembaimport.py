@@ -167,6 +167,7 @@ class Command(BaseCommand):
                     'size': row.size,
                     'hash': row.hash,
                     'url': url,
+                    'build_time': 0,
                 }
                 item = Archive(**item_data)
                 creation_queue.append(item)
