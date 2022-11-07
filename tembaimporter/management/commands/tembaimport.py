@@ -148,7 +148,11 @@ class Command(BaseCommand):
         
         for read_batch in self.client.get_archives().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
-            for row in read_batch:          
+            for row in read_batch:
+                # Older Temba versions use the "download_url" instead of "url"
+                url = row.download_url if not hasattr(row, 'url') else row.url
+                # Remove this common substring in order to make the URL fit the 200 char limit
+                url = url.replace("response-content-disposition=attachment%3B&response-content-type=application%2Foctet&response-content-encoding=none&", "")          
                 item_data = {
                     'org': self.default_org,
                     'archive_type': row.archive_type,
@@ -157,7 +161,7 @@ class Command(BaseCommand):
                     'record_count': row.record_count,
                     'size': row.size,
                     'hash': row.hash,
-                    'url': row.download_url if not hasattr(row, 'url') else row.url,
+                    'url': url,
                 }
                 item = Archive(**item_data)
                 creation_queue.append(item)
@@ -302,3 +306,5 @@ class Command(BaseCommand):
                 creation_queue.append(item)
             total += len(Campaign.objects.bulk_create(creation_queue))
         return total            
+
+https://rapidpro-static-app.s3.amazonaws.com/99/message_D20211106_4e7009ace847a12c0ac4c1fef2674586.jsonl.gz?response-content-disposition=attachment%3B&response-content-type=application%2Foctet&response-content-encoding=none&AWSAccessKeyId=AKIAWSRWE3IH3URI3MPL&Signature=v5AUUuoQhyJYAJJ%2F3CoRR7G1o%2BM%3D&Expires=1667866922
