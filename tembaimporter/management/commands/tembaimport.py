@@ -316,7 +316,7 @@ class Command(BaseCommand):
                     'name': row.name,
                     'is_archived': row.archived,
                     'created_on': row.created_on,
-                    'group__pk': groups_uuid_pk[row.group.uuid] if row.group else None,
+                    'group_pk': groups_uuid_pk[row.group.uuid] if row.group else None,
                 }
                 item = Campaign(**item_data)
                 creation_queue.append(item)
