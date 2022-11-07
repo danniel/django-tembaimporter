@@ -156,7 +156,6 @@ class Command(BaseCommand):
                 url = url.replace("response-content-disposition=attachment%3B&", "")
                 url = url.replace("response-content-type=application%2Foctet&", "")
                 url = url.replace("response-content-encoding=none&", "")
-                print(len(url), url)
 
                 item_data = {
                     'org': self.default_org,
