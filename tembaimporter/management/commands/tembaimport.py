@@ -157,6 +157,7 @@ class Command(BaseCommand):
                 url = url.replace("response-content-type=application%2Foctet&", "")
                 url = url.replace("response-content-encoding=none&", "")
                 url = url.replace("&Expires=1667866922", "")
+                print(len(url), url)
 
                 item_data = {
                     'org': self.default_org,
