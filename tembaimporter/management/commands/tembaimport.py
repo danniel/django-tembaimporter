@@ -157,7 +157,7 @@ class Command(BaseCommand):
                     'record_count': row.record_count,
                     'size': row.size,
                     'hash': row.hash,
-                    'download_url': row.download_url,
+                    'url': row.download_url if not hasattr(row, 'url') else row.url,
                 }
                 item = Archive(**item_data)
                 creation_queue.append(item)
@@ -248,7 +248,6 @@ class Command(BaseCommand):
                     # The remote API is newer Temba install
                     item_data |= {'status': inverse_choice['status'][row.status] if row.status else None}
 
-                #TODO: URNs are censored. Will resume work on this when the source Org will not hide phone numbers
                 item = Contact(**item_data)
                 creation_queue.append(item)
 
