@@ -12,9 +12,9 @@ from temba.archives.models import Archive
 from temba.campaigns.models import Campaign, CampaignEvent
 from temba.contacts.models import (Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN, URN)
-from temba.channels.models import Channel
+from temba.channels.models import Channel, ChannelEvent
 from temba.orgs.models import Org
-from temba.msgs.models import Broadcast
+from temba.msgs.models import Broadcast, Label
 from temba_client.v2 import TembaClient
 
 logger = logging.getLogger("temba_client")
@@ -144,6 +144,19 @@ class Command(BaseCommand):
         else:
             copy_result = self._copy_channels()
             self.write_success('Copied %d channels.' % copy_result)
+
+        # if ChannelEvent.objects.count():
+        #     self.write_notice('Skipping channel events.')
+        # else:
+        #     copy_result = self._copy_channel_events()
+        #     self.write_success('Copied %d channel events.' % copy_result)
+
+        if Label.objects.count():
+            self.write_notice('Skipping labels.')
+        else:
+            copy_result = self._copy_labels()
+            self.write_success('Copied %d labels.' % copy_result)
+
 
     def write_success(self, message: str):
         self.stdout.write(self.style.SUCCESS(message))
@@ -353,4 +366,44 @@ class Command(BaseCommand):
                 item = Channel(**item_data)
                 creation_queue.append(item)
             total += len(Channel.objects.bulk_create(creation_queue))
+        return total            
+
+    def _copy_channel_events(self) -> int:
+        # TODO
+        total = 0
+        for read_batch in self.client.get_channels().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
+                    'uuid': row.uuid,
+                    'name': row.name,
+                    'created_on': row.created_on,
+                    'last_seen': row.last_seen,
+                    'address': row.address,
+                    'country': row.country,
+                    'device': row.device,
+                }
+                item = Channel(**item_data)
+                creation_queue.append(item)
+            total += len(Channel.objects.bulk_create(creation_queue))
+        return total            
+
+    def _copy_labels(self) -> int:
+        total = 0
+        for read_batch in self.client.get_labels().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
+                    'uuid': row.uuid,
+                    'name': row.name,
+                }
+                item = Label(**item_data)
+                creation_queue.append(item)
+            total += len(Label.objects.bulk_create(creation_queue))
         return total            
