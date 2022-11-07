@@ -14,7 +14,7 @@ from temba.contacts.models import (Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN, URN)
 from temba.channels.models import Channel, ChannelEvent
 from temba.orgs.models import Org
-from temba.msgs.models import Broadcast, Label
+from temba.msgs.models import Broadcast, Label, Msg
 from temba_client.v2 import TembaClient
 
 logger = logging.getLogger("temba_client")
@@ -156,6 +156,18 @@ class Command(BaseCommand):
         else:
             copy_result = self._copy_labels()
             self.write_success('Copied %d labels.' % copy_result)
+
+        if Broadcast.objects.count():
+            self.write_notice('Skipping broadcasts.')
+        else:
+            copy_result = self._copy_broadcasts()
+            self.write_success('Copied %d broadcasts.' % copy_result)
+
+        # if Msg.objects.count():
+        #     self.write_notice('Skipping messages.')
+        # else:
+        #     copy_result = self._copy_messages()
+        #     self.write_success('Copied %d messages.' % copy_result)
 
 
     def write_success(self, message: str):
@@ -407,3 +419,53 @@ class Command(BaseCommand):
                 creation_queue.append(item)
             total += len(Label.objects.bulk_create(creation_queue))
         return total            
+
+    def _copy_broadcasts(self) -> int:
+        total = 0
+        inverse_choice = Command.inverse_choices(
+            (("status", serializers.BroadcastReadSerializer.STATUSES.items()), ))
+
+        for read_batch in self.client.get_broadcasts().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'created_on': row.created_on,
+                    'status': inverse_choice['status'][row.status],
+                    'text': list(row.text.items())
+                }
+                item = Broadcast(**item_data)
+                creation_queue.append(item)
+            total += len(Broadcast.objects.bulk_create(creation_queue))
+
+            broadcasts_created = Broadcast.objects.bulk_create(creation_queue)
+            total += len(broadcasts_created)
+
+            # group_through_queue = []  # the m2m "through" objects
+            # contact_through_queue = []
+            # urn_through_queue = []
+            
+            # for broadcast in broadcasts_created:
+            #     for guuid in contact_group_uuids[contact.uuid]:
+            #         gid = groups_uuid_pk.get(guuid, None)
+            #         # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
+            #         group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
+
+            # Contact.groups.through.objects.bulk_create(group_through_queue)
+        return total            
+
+    # def _copy_messages(self) -> int:
+    #     total = 0
+    #     for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
+    #         creation_queue = []
+    #         for row in read_batch:
+    #             item_data = {
+    #                 'org': self.default_org,
+    #                 'uuid': row.uuid,
+                    
+    #             }
+    #             item = Msg(**item_data)
+    #             creation_queue.append(item)
+    #         total += len(Msg.objects.bulk_create(creation_queue))
+    #     return total            
