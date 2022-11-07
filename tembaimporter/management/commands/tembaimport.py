@@ -433,7 +433,7 @@ class Command(BaseCommand):
                     'created_by': self.default_user,
                     'created_on': row.created_on,
                     'status': inverse_choice['status'][row.status],
-                    'text': list(row.text.items())
+                    'text': row.text,
                 }
                 item = Broadcast(**item_data)
                 creation_queue.append(item)
