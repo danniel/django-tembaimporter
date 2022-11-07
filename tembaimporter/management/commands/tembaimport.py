@@ -15,21 +15,26 @@ from temba.contacts.models import (Contact, ContactField, ContactGroup,
 from temba.orgs.models import Org
 from temba_client.v2 import TembaClient
 
-logger = logging.getLogger('temba_client')
+logger = logging.getLogger("temba_client")
 logger.setLevel(logging.DEBUG)
 
 
 class Command(BaseCommand):
-    help = 'Import Temba data from a remote API'
+    help = (
+        "Import Temba data from a remote API."
+        "If at least one row already exists for a specific model it will skip its import."
+    )
 
     @staticmethod
     def clean_api_url(url: str) -> str:
+        """ Cleans up the API URL provided by the user """
         if not url:
             return ''
         return url.removesuffix('/').removesuffix('/api/v2').strip()
 
     @staticmethod
     def clean_api_key(key: str) -> str:
+        """ Cleans up the API Key provided by the user """
         if not key:
             return ''
         return key.lower().removeprefix('token').strip()
@@ -52,6 +57,7 @@ class Command(BaseCommand):
         }
 
     def throttle(self) -> None:
+        """ Pause the execution thread for a few seconds """
         if self.throttle_requests:
             SECONDS = 5
             self.stdout.write("Sleeping %d seconds..." % SECONDS)
@@ -72,10 +78,10 @@ class Command(BaseCommand):
             help='Remote API key (ie: abcdef1234567890abcdef1234567890)')
         parser.add_argument(
             '--flush', action='store_true', 
-            help="Flush existing records")
+            help="Delete existing records before importing the remote data")
         parser.add_argument(
             '--throttle', action='store_true', 
-            help="Slow down the API interrogations")
+            help="Slow down the API interrogations by taking some pauses")
 
     def handle(self, *args, **options):
         api_url = Command.clean_api_url(
@@ -207,7 +213,7 @@ class Command(BaseCommand):
         return total            
 
     def _get_groups_uuid_id(self) -> QuerySet:
-        # Retrieve all existing group uuids and their corresponding ids
+        """ Retrieve all existing group uuids and their corresponding ids """
         return ContactGroup.objects.all().values_list('uuid', 'id', named=True)
 
     def _copy_contacts(self) -> int:
