@@ -225,16 +225,16 @@ class Command(BaseCommand):
             self.throttle()
         return total            
 
-    def _get_groups_uuid_id(self) -> QuerySet:
+    def _get_groups_uuid_pk(self) -> QuerySet:
         """ Retrieve all existing group uuids and their corresponding ids """
-        return ContactGroup.objects.all().values_list('uuid', 'id', named=True)
+        return {item[0]: item[1] for item in ContactGroup.objects.values_list('uuid', 'pk')}
 
     def _copy_contacts(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
             (("status", serializers.ContactReadSerializer.STATUSES.items()), ))
 
-        groups_uuid_id = self._get_groups_uuid_id()
+        groups_uuid_pk = self._get_groups_uuid_pk()
         
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
             contact_group_uuids = {}
@@ -279,7 +279,7 @@ class Command(BaseCommand):
             contact_urns_queue = []  # the ContactURN objects
             for contact in contacts_created:
                 for guuid in contact_group_uuids[contact.uuid]:
-                    gid = groups_uuid_id.get(uuid=guuid).id
+                    gid = groups_uuid_pk.get(guuid, None)
                     # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
                     group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
                 for urn in contact_urns[contact.uuid]:
@@ -301,6 +301,7 @@ class Command(BaseCommand):
 
     def _copy_campaigns(self) -> int:
         total = 0
+        groups_uuid_pk = self._get_groups_uuid_pk()
         for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:
@@ -309,7 +310,7 @@ class Command(BaseCommand):
                     'name': row.name,
                     'archived': row.archived,
                     'created_on': row.created_on,
-                    'group__pk': row.group['uuid'],
+                    'group__pk': groups_uuid_pk[row.group.uuid] if row.group else None,
                 }
                 item = Campaign(**item_data)
                 creation_queue.append(item)
