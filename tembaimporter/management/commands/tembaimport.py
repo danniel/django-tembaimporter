@@ -350,7 +350,7 @@ class Command(BaseCommand):
                     'country': row.country,
                     'device': row.device,
                 }
-                item = Campaign(**item_data)
+                item = Channel(**item_data)
                 creation_queue.append(item)
-            total += len(Campaign.objects.bulk_create(creation_queue))
+            total += len(Channel.objects.bulk_create(creation_queue))
         return total            
