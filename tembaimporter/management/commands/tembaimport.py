@@ -13,6 +13,7 @@ from temba.campaigns.models import Campaign, CampaignEvent
 from temba.contacts.models import (Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN, URN)
 from temba.orgs.models import Org
+from temba.msgs.models import Broadcast
 from temba_client.v2 import TembaClient
 
 logger = logging.getLogger("temba_client")
@@ -131,8 +132,11 @@ class Command(BaseCommand):
             copy_result = self._copy_archives()
             self.stdout.write(self.style.SUCCESS('Copied %d archives.' % copy_result))
 
-        # copy_result = self._copy_campaigns()
-        # self.stdout.write(self.style.SUCCESS('Copied %d campaigns.\n' % copy_result))
+        if Campaign.objects.count():
+            self.stdout.write(self.style.NOTICE('Skipping campaigns.'))
+        else:
+            copy_result = self._copy_campaigns()
+            self.stdout.write(self.style.SUCCESS('Copied %d campaigns.' % copy_result))
 
     def _flush_records(self) -> None:
         ContactURN.objects.all().delete()
