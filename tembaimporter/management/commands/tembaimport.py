@@ -109,34 +109,40 @@ class Command(BaseCommand):
         # The order in which we copy the data is important because of object relationships
 
         if ContactField.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping contact fields.'))
+            self.write_notice('Skipping contact fields.')
         else:
             copy_result = self._copy_fields()
-            self.stdout.write(self.style.SUCCESS('Copied %d fields.' % copy_result))
+            self.write_success('Copied %d fields.' % copy_result)
 
         if ContactGroup.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping contact groups.'))
+            self.write_notice('Skipping contact groups.')
         else:
             copy_result = self._copy_groups()
-            self.stdout.write(self.style.SUCCESS('Copied %d groups.' % copy_result))
+            self.write_success('Copied %d groups.' % copy_result)
 
         if Contact.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping contacts.'))
+            self.write_notice('Skipping contacts.')
         else:
             copy_result = self._copy_contacts()
-            self.stdout.write(self.style.SUCCESS('Copied %d contacts.' % copy_result))
+            self.write_success('Copied %d contacts.' % copy_result)
 
         if Archive.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping archives.'))
+            self.write_notice('Skipping archives.')
         else:
             copy_result = self._copy_archives()
-            self.stdout.write(self.style.SUCCESS('Copied %d archives.' % copy_result))
+            self.write_success('Copied %d archives.' % copy_result)
 
         if Campaign.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping campaigns.'))
+            self.write_notice('Skipping campaigns.')
         else:
             copy_result = self._copy_campaigns()
-            self.stdout.write(self.style.SUCCESS('Copied %d campaigns.' % copy_result))
+            self.write_success('Copied %d campaigns.' % copy_result)
+
+    def write_success(self, message: str):
+        self.stdout.write(self.style.SUCCESS(message))
+
+    def write_notice(self, message: str):
+        self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
         ContactURN.objects.all().delete()
