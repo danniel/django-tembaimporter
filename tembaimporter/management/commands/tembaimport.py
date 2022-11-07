@@ -109,13 +109,13 @@ class Command(BaseCommand):
         # The order in which we copy the data is important because of object relationships
 
         if ContactField.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping contact fields'))
+            self.stdout.write(self.style.NOTICE('Skipping contact fields.'))
         else:
             copy_result = self._copy_fields()
             self.stdout.write(self.style.SUCCESS('Copied %d fields.' % copy_result))
 
         if ContactGroup.objects.count():
-            self.stdout.write(self.style.NOTICE('Skipping contact groups'))
+            self.stdout.write(self.style.NOTICE('Skipping contact groups.'))
         else:
             copy_result = self._copy_groups()
             self.stdout.write(self.style.SUCCESS('Copied %d groups.' % copy_result))
@@ -308,7 +308,7 @@ class Command(BaseCommand):
                 item_data = {
                     'uuid': row.uuid,
                     'name': row.name,
-                    'archived': row.archived,
+                    'is_archived': row.archived,
                     'created_on': row.created_on,
                     'group__pk': groups_uuid_pk[row.group.uuid] if row.group else None,
                 }
