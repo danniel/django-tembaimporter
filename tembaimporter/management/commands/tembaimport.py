@@ -152,11 +152,10 @@ class Command(BaseCommand):
                 # Older Temba versions use the "download_url" instead of "url"
                 url = row.download_url if not hasattr(row, 'url') else row.url
                 # Remove some common substrings in order to make the URL fit the 200 char limit
-                url = url.replace("https://", "")
+                url = url.replace("https://rapidpro-static-app.s3.amazonaws.com", "")
                 url = url.replace("response-content-disposition=attachment%3B&", "")
                 url = url.replace("response-content-type=application%2Foctet&", "")
                 url = url.replace("response-content-encoding=none&", "")
-                url = url.replace("&Expires=1667866922", "")
                 print(len(url), url)
 
                 item_data = {
