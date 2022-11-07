@@ -437,7 +437,6 @@ class Command(BaseCommand):
                 }
                 item = Broadcast(**item_data)
                 creation_queue.append(item)
-            total += len(Broadcast.objects.bulk_create(creation_queue))
 
             broadcasts_created = Broadcast.objects.bulk_create(creation_queue)
             total += len(broadcasts_created)
