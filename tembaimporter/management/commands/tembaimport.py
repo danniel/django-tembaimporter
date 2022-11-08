@@ -455,13 +455,13 @@ class Command(BaseCommand):
                 item = Broadcast(**item_data)
                 creation_queue.append(item)
 
-                contact_urns[row.uuid] = row.urns
-                contact_group_uuids[row.uuid] = []
+                contact_urns[row.id] = row.urns
+                contact_group_uuids[row.id] = []
                 for g in row.groups:
-                    contact_group_uuids[row.uuid].append(g.uuid)
-                contact_group_uuids[row.uuid] = []
+                    contact_group_uuids[row.id].append(g.uuid)
+                contact_group_uuids[row.id] = []
                 for c in row.contacts:
-                    contact_uuids[row.uuid].append(c.uuid)
+                    contact_uuids[row.id].append(c.uuid)
 
             broadcasts_created = Broadcast.objects.bulk_create(creation_queue)
             total += len(broadcasts_created)
@@ -472,15 +472,15 @@ class Command(BaseCommand):
             urn_through_queue = []
             
             for broadcast in broadcasts_created:
-                for guuid in contact_group_uuids[broadcast.uuid]:
+                for guuid in contact_group_uuids[broadcast.id]:
                     gid = groups_uuid_pk.get(guuid, None)
                     group_through_queue.append(
                         Broadcast.groups.through(broadcast_id=broadcast.id, contactgroup_id=gid))
-                for cuuid in contact_uuids[broadcast.uuid]:
+                for cuuid in contact_uuids[broadcast.id]:
                     cid = contacts_uuid_pk.get(cuuid, None)
                     contact_through_queue.append(
                         Broadcast.contacts.through(broadcast_id=broadcast.id, contact_id=cid))
-                for urn in contact_urns[broadcast.uuid]:
+                for urn in contact_urns[broadcast.id]:
                     uid = urns_pk.get(urn, None)
                     urn_through_queue.append(
                         Broadcast.urns.through(broadcast_id=broadcast.id, urn_id=uid))
