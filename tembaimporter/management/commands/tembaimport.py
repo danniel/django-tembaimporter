@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections.abc import Iterable
+from functools import cache, property
 from typing import Any, Dict
 
 from django.contrib.auth.models import User
@@ -263,22 +264,32 @@ class Command(BaseCommand):
             self.throttle()
         return total            
 
+    @property
+    @cache
     def _get_groups_uuid_pk(self) -> Dict[str, int]:
         """ Retrieve all existing Group uuids and their corresponding database id """
         return {item[0]: item[1] for item in ContactGroup.objects.values_list('uuid', 'pk')}
 
+    @property
+    @cache
     def _get_contacts_uuid_pk(self) -> Dict[str, int]:
         """ Retrieve all existing Contact uuids and their corresponding database id """
         return {item[0]: item[1] for item in Contact.objects.values_list('uuid', 'pk')}
 
+    @property
+    @cache
     def _get_urns_pk(self) -> Dict[str, int]:
         """ Retrieve all existing URNs and their corresponding database id """
         return {item[0]: item[1] for item in ContactURN.objects.values_list('identity', 'pk')}
 
+    @property
+    @cache
     def _get_channels_uuid_pk(self) -> Dict[str, int]:
         """ Retrieve all existing Channel uuids and their corresponding database id """
         return {item[0]: item[1] for item in Channel.objects.values_list('uuid', 'pk')}
 
+    @property
+    @cache
     def _get_labels_uuid_pk(self) -> Dict[str, int]:
         """ Retrieve all existing Label uuids and their corresponding database id """
         return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
