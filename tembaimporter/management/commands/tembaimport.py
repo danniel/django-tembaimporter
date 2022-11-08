@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Dict
 
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
@@ -263,9 +263,17 @@ class Command(BaseCommand):
             self.throttle()
         return total            
 
-    def _get_groups_uuid_pk(self) -> QuerySet:
-        """ Retrieve all existing group uuids and their corresponding ids """
+    def _get_groups_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Group uuids and their corresponding database id """
         return {item[0]: item[1] for item in ContactGroup.objects.values_list('uuid', 'pk')}
+
+    def _get_contacts_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Contact uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Contact.objects.values_list('uuid', 'pk')}
+
+    def _get_urns_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing URNs and their corresponding database id """
+        return {item[0]: item[1] for item in ContactURN.objects.values_list('identity', 'pk')}
 
     def _copy_contacts(self) -> int:
         total = 0
@@ -424,9 +432,18 @@ class Command(BaseCommand):
         total = 0
         inverse_choice = Command.inverse_choices(
             (("status", serializers.BroadcastReadSerializer.STATUSES.items()), ))
+        
+        # This could use a lot of memory
+        groups_uuid_pk = self._get_groups_uuid_pk()
+        contacts_uuid_pk = self._get_contacts_uuid_pk()
+        urns_pk = self._get_urns_pk()
 
         for read_batch in self.client.get_broadcasts().iterfetches(retry_on_rate_exceed=True):
+            contact_group_uuids = {}
+            contact_urns = {}
+            contact_uuids = {}
             creation_queue = []
+
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -438,20 +455,39 @@ class Command(BaseCommand):
                 item = Broadcast(**item_data)
                 creation_queue.append(item)
 
+                contact_urns[row.uuid] = row.urns
+                contact_group_uuids[row.uuid] = []
+                for g in row.groups:
+                    contact_group_uuids[row.uuid].append(g.uuid)
+                contact_group_uuids[row.uuid] = []
+                for c in row.contacts:
+                    contact_uuids[row.uuid].append(c.uuid)
+
             broadcasts_created = Broadcast.objects.bulk_create(creation_queue)
             total += len(broadcasts_created)
 
-            # group_through_queue = []  # the m2m "through" objects
-            # contact_through_queue = []
-            # urn_through_queue = []
+            # the m2m "through" objects
+            group_through_queue = []  
+            contact_through_queue = []
+            urn_through_queue = []
             
-            # for broadcast in broadcasts_created:
-            #     for guuid in contact_group_uuids[contact.uuid]:
-            #         gid = groups_uuid_pk.get(guuid, None)
-            #         # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
-            #         group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
+            for broadcast in broadcasts_created:
+                for guuid in contact_group_uuids[broadcast.uuid]:
+                    gid = groups_uuid_pk.get(guuid, None)
+                    group_through_queue.append(
+                        Broadcast.groups.through(broadcast_id=broadcast.id, contactgroup_id=gid))
+                for cuuid in contact_uuids[broadcast.uuid]:
+                    cid = contacts_uuid_pk.get(cuuid, None)
+                    contact_through_queue.append(
+                        Broadcast.contacts.through(broadcast_id=broadcast.id, contact_id=cid))
+                for urn in contact_urns[broadcast.uuid]:
+                    uid = urns_pk.get(urn, None)
+                    urn_through_queue.append(
+                        Broadcast.urns.through(broadcast_id=broadcast.id, urn_id=uid))
 
-            # Contact.groups.through.objects.bulk_create(group_through_queue)
+            Broadcast.groups.through.objects.bulk_create(group_through_queue)
+            Broadcast.contacts.through.objects.bulk_create(contact_through_queue)
+            Broadcast.urns.through.objects.bulk_create(urn_through_queue)
         return total            
 
     # def _copy_messages(self) -> int:
