@@ -163,11 +163,11 @@ class Command(BaseCommand):
             copy_result = self._copy_broadcasts()
             self.write_success('Copied %d broadcasts.' % copy_result)
 
-        # if Msg.objects.count():
-        #     self.write_notice('Skipping messages.')
-        # else:
-        #     copy_result = self._copy_messages()
-        #     self.write_success('Copied %d messages.' % copy_result)
+        if Msg.objects.count():
+            self.write_notice('Skipping messages.')
+        else:
+            copy_result = self._copy_messages()
+            self.write_success('Copied %d messages.' % copy_result)
 
 
     def write_success(self, message: str):
@@ -491,17 +491,46 @@ class Command(BaseCommand):
             Broadcast.urns.through.objects.bulk_create(urn_through_queue)
         return total            
 
-    # def _copy_messages(self) -> int:
-    #     total = 0
-    #     for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
-    #         creation_queue = []
-    #         for row in read_batch:
-    #             item_data = {
-    #                 'org': self.default_org,
-    #                 'uuid': row.uuid,
-                    
-    #             }
-    #             item = Msg(**item_data)
-    #             creation_queue.append(item)
-    #         total += len(Msg.objects.bulk_create(creation_queue))
-    #     return total            
+    def _copy_messages(self) -> int:
+        total = 0
+        # groups_uuid_pk = self._get_groups_uuid_pk()
+        contacts_uuid_pk = self._get_contacts_uuid_pk()
+        urns_pk = self._get_urns_pk()
+
+        inverse_choice = Command.inverse_choices((
+            ("direction", serializers.MsgReadSerializer.STATUSES.items()), 
+            ("type", serializers.MsgReadSerializer.TYPES.items()), 
+            ("status", serializers.MsgReadSerializer.STATUSES.items()), 
+            ("visibility", ((Msg.DIRECTION_IN, "in"), (Msg.DIRECTION_OUT, "out"))), 
+        ))
+
+        for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'uuid': row.uuid,
+                    'id': row.id,
+                    'archived': row.archived,
+                    'direction': inverse_choice['direction'][row.direction],
+                    'type': inverse_choice['type'][row.type],
+                    'status': inverse_choice['status'][row.status],
+                    'visibility': inverse_choice['visibility'][row.visibility],
+
+                    'contact': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
+                    'urn': urns_pk.get(row.urn, None) if row.urn else None,
+                    'channel': row.channel, #TODO
+                    'labels': row.labels,                    
+                    'attachments': row.attachments,
+
+                    'created_on': row.created_on,
+                    'sent_on': row.sent_on,
+                    'modified_on': row.modified_on,
+                    'text': row.text,
+                    'media': row.media,
+                }
+
+                item = Msg(**item_data)
+                creation_queue.append(item)
+            total += len(Msg.objects.bulk_create(creation_queue))
+        return total            
