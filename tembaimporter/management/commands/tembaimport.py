@@ -178,6 +178,12 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
+        Msg.objects.all().delete()
+        Broadcast.objects.all().delete()
+        Label.objects.all().delete()
+        Channel.objects.all().delete()
+        Campaign.objects.all().delete()
+        Archive.objects.all().delete()
         ContactURN.objects.all().delete()
         Contact.objects.all().delete()
         ContactGroupCount.objects.all().delete()
