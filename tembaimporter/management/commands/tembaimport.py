@@ -275,6 +275,10 @@ class Command(BaseCommand):
         """ Retrieve all existing URNs and their corresponding database id """
         return {item[0]: item[1] for item in ContactURN.objects.values_list('identity', 'pk')}
 
+    def _get_channels_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Channel uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Channel.objects.values_list('uuid', 'pk')}
+
     def _copy_contacts(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
@@ -495,6 +499,7 @@ class Command(BaseCommand):
         total = 0
         # groups_uuid_pk = self._get_groups_uuid_pk()
         contacts_uuid_pk = self._get_contacts_uuid_pk()
+        channels_uuid_pk = self._get_channels_uuid_pk()
         urns_pk = self._get_urns_pk()
 
         inverse_choice = Command.inverse_choices((
@@ -519,8 +524,8 @@ class Command(BaseCommand):
 
                     'contact': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     'urn': urns_pk.get(row.urn, None) if row.urn else None,
-                    'channel': row.channel, #TODO
-                    'labels': row.labels,                    
+                    'channel': channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
+                    'labels': row.labels,             
                     'attachments': row.attachments,
 
                     'created_on': row.created_on,
