@@ -509,7 +509,6 @@ class Command(BaseCommand):
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
-                    'uuid': row.uuid,
                     'id': row.id,
                     'archived': row.archived,
                     'direction': inverse_choice['direction'][row.direction],
