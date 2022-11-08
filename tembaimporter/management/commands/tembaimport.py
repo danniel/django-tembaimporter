@@ -299,7 +299,7 @@ class Command(BaseCommand):
         inverse_choice = Command.inverse_choices(
             (("status", serializers.ContactReadSerializer.STATUSES.items()), ))
 
-        groups_uuid_pk = self._get_groups_uuid_pk()
+        groups_uuid_pk = self._get_groups_uuid_pk
         
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
             contact_group_uuids = {}
@@ -366,7 +366,7 @@ class Command(BaseCommand):
 
     def _copy_campaigns(self) -> int:
         total = 0
-        groups_uuid_pk = self._get_groups_uuid_pk()
+        groups_uuid_pk = self._get_groups_uuid_pk
         for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:
@@ -453,8 +453,8 @@ class Command(BaseCommand):
             (("status", serializers.BroadcastReadSerializer.STATUSES.items()), ))
         
         # This could use a lot of memory
-        groups_uuid_pk = self._get_groups_uuid_pk()
-        contacts_uuid_pk = self._get_contacts_uuid_pk()
+        groups_uuid_pk = self._get_groups_uuid_pk
+        contacts_uuid_pk = self._get_contacts_uuid_pk
         urns_pk = self._get_urns_pk()
 
         for read_batch in self.client.get_broadcasts().iterfetches(retry_on_rate_exceed=True):
@@ -512,10 +512,10 @@ class Command(BaseCommand):
 
     def _copy_messages(self) -> int:
         total = 0
-        contacts_uuid_pk = self._get_contacts_uuid_pk()
-        channels_uuid_pk = self._get_channels_uuid_pk()
-        labels_uuid_pk = self._get_labels_uuid_pk()
-        urns_pk = self._get_urns_pk()
+        contacts_uuid_pk = self._get_contacts_uuid_pk
+        channels_uuid_pk = self._get_channels_uuid_pk
+        labels_uuid_pk = self._get_labels_uuid_pk
+        urns_pk = self._get_urns_pk
 
         inverse_choice = Command.inverse_choices((
             ("direction", [(Msg.DIRECTION_IN, "in"), (Msg.DIRECTION_OUT, "out")]), 
