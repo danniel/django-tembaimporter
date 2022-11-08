@@ -461,7 +461,7 @@ class Command(BaseCommand):
         # This could use a lot of memory
         groups_uuid_pk = self._get_groups_uuid_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk
-        urns_pk = self._get_urns_pk()
+        urns_pk = self._get_urns_pk
 
         for read_batch in self.client.get_broadcasts().iterfetches(retry_on_rate_exceed=True):
             contact_group_uuids = {}
