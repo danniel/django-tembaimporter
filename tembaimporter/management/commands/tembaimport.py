@@ -498,10 +498,10 @@ class Command(BaseCommand):
         urns_pk = self._get_urns_pk()
 
         inverse_choice = Command.inverse_choices((
-            ("direction", serializers.MsgReadSerializer.STATUSES.items()), 
+            ("direction", [(Msg.DIRECTION_IN, "in"), (Msg.DIRECTION_OUT, "out")]), 
             ("type", serializers.MsgReadSerializer.TYPES.items()), 
             ("status", serializers.MsgReadSerializer.STATUSES.items()), 
-            ("visibility", ((Msg.DIRECTION_IN, "in"), (Msg.DIRECTION_OUT, "out"))), 
+            ("visibility", serializers.MsgReadSerializer.VISIBILITIES.items()), 
         ))
 
         for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
