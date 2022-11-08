@@ -446,6 +446,7 @@ class Command(BaseCommand):
 
             for row in read_batch:
                 item_data = {
+                    'id': row.id,
                     'org': self.default_org,
                     'created_by': self.default_user,
                     'created_on': row.created_on,
