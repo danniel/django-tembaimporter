@@ -510,6 +510,7 @@ class Command(BaseCommand):
                 item_data = {
                     'org': self.default_org,
                     'id': row.id,
+                    'broadcast': row.broadcast,
                     'is_archived': row.archived,
                     'direction': inverse_choice['direction'][row.direction],
                     'msg_type': inverse_choice['type'][row.type],
