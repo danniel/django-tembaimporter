@@ -541,7 +541,7 @@ class Command(BaseCommand):
                 item_data = {
                     'org': self.default_org,
                     'id': row.id,
-                    'broadcast': row.broadcast,
+                    'broadcast_id': row.broadcast,
                     'direction': inverse_choice['direction'][row.direction],
                     'msg_type': inverse_choice['type'][row.type],
                     'status': inverse_choice['status'][row.status],
