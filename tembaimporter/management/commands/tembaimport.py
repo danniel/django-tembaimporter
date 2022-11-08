@@ -538,7 +538,7 @@ class Command(BaseCommand):
                     'status': inverse_choice['status'][row.status],
                     'visibility': inverse_choice['visibility'][row.visibility],
 
-                    'contact': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
+                    'contact_id': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     'contact_urn': urns_pk.get(row.urn, None) if row.urn else None,
                     'channel_id': channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
                     'attachments': row.attachments,
