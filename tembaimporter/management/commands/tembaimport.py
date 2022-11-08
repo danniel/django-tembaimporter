@@ -547,7 +547,6 @@ class Command(BaseCommand):
                     'sent_on': row.sent_on,
                     'modified_on': row.modified_on,
                     'text': row.text,
-                    'media': row.media,
                 }
                 
                 item = Msg(**item_data)
