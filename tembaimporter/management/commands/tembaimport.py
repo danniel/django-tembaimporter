@@ -279,6 +279,10 @@ class Command(BaseCommand):
         """ Retrieve all existing Channel uuids and their corresponding database id """
         return {item[0]: item[1] for item in Channel.objects.values_list('uuid', 'pk')}
 
+    def _get_labels_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Label uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
+
     def _copy_contacts(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
@@ -497,9 +501,9 @@ class Command(BaseCommand):
 
     def _copy_messages(self) -> int:
         total = 0
-        # groups_uuid_pk = self._get_groups_uuid_pk()
         contacts_uuid_pk = self._get_contacts_uuid_pk()
         channels_uuid_pk = self._get_channels_uuid_pk()
+        labels_uuid_pk = self._get_labels_uuid_pk()
         urns_pk = self._get_urns_pk()
 
         inverse_choice = Command.inverse_choices((
@@ -511,6 +515,8 @@ class Command(BaseCommand):
 
         for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
+            label_uuids = {}
+
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -525,7 +531,6 @@ class Command(BaseCommand):
                     'contact': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     'urn': urns_pk.get(row.urn, None) if row.urn else None,
                     'channel_id': channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
-                    'labels': row.labels,             
                     'attachments': row.attachments,
 
                     'created_on': row.created_on,
@@ -534,8 +539,22 @@ class Command(BaseCommand):
                     'text': row.text,
                     'media': row.media,
                 }
-
+                
                 item = Msg(**item_data)
                 creation_queue.append(item)
-            total += len(Msg.objects.bulk_create(creation_queue))
+                
+                label_uuids[row.id] = []
+                for label in row.labels:
+                    label_uuids[row.id].append(label.uuid)
+
+            msgs_created = Msg.objects.bulk_create(creation_queue)
+            total += len(msgs_created)
+
+            label_through_queue = []
+            for msg in msgs_created:
+                for luuid in label_uuids[msg.id]:
+                    lid = labels_uuid_pk.get(luuid, None)
+                    label_through_queue.append(
+                        Msg.labels.through(msg_id=msg.id, label_id=lid))
+            Msg.labels.through.objects.bulk_create(label_through_queue)
         return total            
