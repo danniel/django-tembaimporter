@@ -524,7 +524,7 @@ class Command(BaseCommand):
 
                     'contact': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     'urn': urns_pk.get(row.urn, None) if row.urn else None,
-                    'channel': channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
+                    'channel_id': channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
                     'labels': row.labels,             
                     'attachments': row.attachments,
 
