@@ -459,7 +459,7 @@ class Command(BaseCommand):
                 contact_group_uuids[row.id] = []
                 for g in row.groups:
                     contact_group_uuids[row.id].append(g.uuid)
-                contact_group_uuids[row.id] = []
+                contact_uuids[row.id] = []
                 for c in row.contacts:
                     contact_uuids[row.id].append(c.uuid)
 
