@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from collections.abc import Iterable
-from functools import cache, property
+from functools import cache
 from typing import Any, Dict
 
 from django.contrib.auth.models import User
