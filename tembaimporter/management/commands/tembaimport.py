@@ -13,7 +13,7 @@ from temba.archives.models import Archive
 from temba.campaigns.models import Campaign, CampaignEvent
 from temba.contacts.models import (Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN, URN)
-from temba.channels.models import Channel, ChannelEvent
+from temba.channels.models import Channel, ChannelEvent, ChannelCount
 from temba.orgs.models import Org
 from temba.msgs.models import Broadcast, Label, Msg, BroadcastMsgCount
 from temba_client.v2 import TembaClient
@@ -183,6 +183,7 @@ class Command(BaseCommand):
         BroadcastMsgCount.objects.all().delete()
         Broadcast.objects.all().delete()
         Label.objects.all().delete()
+        ChannelCount.objects.all().delete()
         Channel.objects.all().delete()
         Campaign.objects.all().delete()
         Archive.objects.all().delete()
