@@ -15,7 +15,7 @@ from temba.contacts.models import (Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN, URN)
 from temba.channels.models import Channel, ChannelEvent
 from temba.orgs.models import Org
-from temba.msgs.models import Broadcast, Label, Msg
+from temba.msgs.models import Broadcast, Label, Msg, BroadcastMsgCount
 from temba_client.v2 import TembaClient
 
 logger = logging.getLogger("temba_client")
@@ -180,6 +180,7 @@ class Command(BaseCommand):
     def _flush_records(self) -> None:
         ChannelEvent.objects.all().delete()
         Msg.objects.all().delete()
+        BroadcastMsgCount.objects.all().delete()
         Broadcast.objects.all().delete()
         Label.objects.all().delete()
         Channel.objects.all().delete()
