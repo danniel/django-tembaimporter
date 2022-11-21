@@ -432,7 +432,7 @@ class Command(BaseCommand):
                     'contact_id': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     'channel_id': channels_uuid_pk[row.channel.uuid] if row.channel else None,
                     'extra': row.extra,
-                    'occured_on': row.occured_on,
+                    'occurred_on': row.occurred_on,
                     'created_on': row.created_on,
                 }
                 item = ChannelEvent(**item_data)
