@@ -146,12 +146,6 @@ class Command(BaseCommand):
             copy_result = self._copy_channels()
             self.write_success('Copied %d channels.' % copy_result)
 
-        # if ChannelEvent.objects.count():
-        #     self.write_notice('Skipping channel events.')
-        # else:
-        #     copy_result = self._copy_channel_events()
-        #     self.write_success('Copied %d channel events.' % copy_result)
-
         if Label.objects.count():
             self.write_notice('Skipping labels.')
         else:
@@ -170,6 +164,12 @@ class Command(BaseCommand):
             copy_result = self._copy_messages()
             self.write_success('Copied %d messages.' % copy_result)
 
+        if ChannelEvent.objects.count():
+            self.write_notice('Skipping channel events.')
+        else:
+            copy_result = self._copy_channel_events()
+            self.write_success('Copied %d channel events.' % copy_result)
+
 
     def write_success(self, message: str):
         self.stdout.write(self.style.SUCCESS(message))
@@ -178,6 +178,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
+        ChannelEvent.objects.all().delete()
         Msg.objects.all().delete()
         Broadcast.objects.all().delete()
         Label.objects.all().delete()
@@ -414,26 +415,29 @@ class Command(BaseCommand):
         return total            
 
     def _copy_channel_events(self) -> int:
-        # TODO
         total = 0
-        for read_batch in self.client.get_channels().iterfetches(retry_on_rate_exceed=True):
+        inverse_choice = Command.inverse_choices(
+            (("event_type", ChannelEvent.TYPE_CHOICES.items()), ))
+
+        channels_uuid_pk = self._get_channels_uuid_pk
+        contacts_uuid_pk = self._get_contacts_uuid_pk        
+
+        for read_batch in self.client.get_channel_events().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
-                    'created_by': self.default_user,
-                    'modified_by': self.default_user,
-                    'uuid': row.uuid,
-                    'name': row.name,
+                    'id': row.id,
+                    'event_type': inverse_choice['event_type'][row.type],
+                    'contact_id': contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
+                    'channel_id': channels_uuid_pk[row.channel.uuid] if row.channel else None,
+                    'extra': row.extra,
+                    'occured_on': row.occured_on,
                     'created_on': row.created_on,
-                    'last_seen': row.last_seen,
-                    'address': row.address,
-                    'country': row.country,
-                    'device': row.device,
                 }
-                item = Channel(**item_data)
+                item = ChannelEvent(**item_data)
                 creation_queue.append(item)
-            total += len(Channel.objects.bulk_create(creation_queue))
+            total += len(ChannelEvent.objects.bulk_create(creation_queue))
         return total            
 
     def _copy_labels(self) -> int:
