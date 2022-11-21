@@ -536,14 +536,11 @@ class Command(BaseCommand):
             ("visibility", serializers.MsgReadSerializer.VISIBILITIES.items()), 
         ))
         
-        print("Contacts uuid pk", len(contacts_uuid_pk))
-
         for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             label_uuids = {}
 
             for row in read_batch:
-                print("Row contact uuid ", row.contact.uuid)
                 item_data = {
                     'org': self.default_org,
                     'id': row.id,
