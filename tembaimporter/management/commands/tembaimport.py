@@ -417,7 +417,7 @@ class Command(BaseCommand):
     def _copy_channel_events(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
-            (("event_type", ChannelEvent.TYPE_CHOICES), ))
+            (("event_type", serializers.ChannelEventReadSerializer.TYPES.items()), ))
 
         channels_uuid_pk = self._get_channels_uuid_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk        
