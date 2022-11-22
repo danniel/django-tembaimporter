@@ -179,6 +179,12 @@ class Command(BaseCommand):
             copy_result = self._copy_ticketers()
             self.write_success('Copied %d ticketers.' % copy_result)
 
+        if Topic.objects.count():
+            self.write_notice('Skipping topics.')
+        else:
+            copy_result = self._copy_topics()
+            self.write_success('Copied %d topics.' % copy_result)
+
 
     def write_success(self, message: str):
         self.stdout.write(self.style.SUCCESS(message))
@@ -187,6 +193,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
+        Topic.objects.all().delete()
         Ticketer.objects.all().delete()
         ChannelEvent.objects.all().delete()
         Msg.objects.all().delete()
