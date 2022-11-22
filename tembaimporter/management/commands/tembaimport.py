@@ -429,7 +429,7 @@ class Command(BaseCommand):
             for row in read_batch:
                 # Skip channel events for channels which don't seem to exist anymore
                 if row.channel.uuid not in channels_uuid_pk:
-                    print("Skipping channel events for channel ", row.channel.uuid, row.channel.name)
+                    logger.warning("Skipping channel events for channel %s %s", row.channel.uuid, row.channel.name)
                     continue
                 item_data = {
                     'org': self.default_org,
