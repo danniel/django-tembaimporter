@@ -668,7 +668,7 @@ class Command(BaseCommand):
                     'email': row.email,
                     'first_name': row.first_name,
                     'last_name': row.last_name,
-                    'created_on': row.created_on,
+                    'date_joined': row.created_on,
                     'role': inverse_choice['role'][row.role],
                 }
                 item = User(**item_data)
