@@ -16,7 +16,7 @@ from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org
-from temba.tickets.models import Ticketer
+from temba.tickets.models import Ticketer, Topic
 from temba.tickets.types.internal import InternalType
 from temba_client.v2 import TembaClient
 
@@ -605,6 +605,7 @@ class Command(BaseCommand):
                     'modified_by': self.default_user,
                     'uuid': row.uuid,
                     'name': row.name,
+                    'created_on': row.created_on,
                     'ticketer_type': row.type,
                     'config': {},
                     'is_system': True if row.type == InternalType.slug else False,
@@ -612,4 +613,24 @@ class Command(BaseCommand):
                 item = Ticketer(**item_data)
                 creation_queue.append(item)
             total += len(Ticketer.objects.bulk_create(creation_queue))
+        return total            
+
+    def _copy_topics(self) -> int:
+        total = 0
+        for read_batch in self.client.get_topics().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
+                    'uuid': row.uuid,
+                    'name': row.name,
+                    'created_on': row.created_on,
+                    'is_system': True if row.name == Topic.DEFAULT_TOPIC else False,
+                    'is_default': True if row.name == Topic.DEFAULT_TOPIC else False,
+                }
+                item = Topic(**item_data)
+                creation_queue.append(item)
+            total += len(Topic.objects.bulk_create(creation_queue))
         return total            
