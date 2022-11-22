@@ -427,6 +427,10 @@ class Command(BaseCommand):
         for read_batch in self.client.get_channel_events().iterfetches(retry_on_rate_exceed=True):
             creation_queue = []
             for row in read_batch:
+                # Skip channel events for channels which don't seem to exist anymore
+                if row.channel.uuid not in channels_uuid_pk:
+                    print("Skipping channel events for channel ", row.channel.uuid, row.channel.name)
+                    continue
                 item_data = {
                     'org': self.default_org,
                     'id': row.id,
