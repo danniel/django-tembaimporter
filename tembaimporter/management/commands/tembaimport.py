@@ -185,6 +185,13 @@ class Command(BaseCommand):
             copy_result = self._copy_topics()
             self.write_success('Copied %d topics.' % copy_result)
 
+        if User.objects.count() > 1:
+            # Skip if we have more than the default user
+            self.write_notice('Skipping users.')
+        else:
+            copy_result = self._copy_users()
+            self.write_success('Copied %d users.' % copy_result)
+
 
     def write_success(self, message: str):
         self.stdout.write(self.style.SUCCESS(message))
@@ -193,6 +200,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
+        if self.default_user:
+            User.objects.exclude(pk=self.default_user.pk).all().delete()
+        else:
+            User.objects.all().delete()
         Topic.objects.all().delete()
         Ticketer.objects.all().delete()
         ChannelEvent.objects.all().delete()
@@ -640,4 +651,24 @@ class Command(BaseCommand):
                 item = Topic(**item_data)
                 creation_queue.append(item)
             total += len(Topic.objects.bulk_create(creation_queue))
+        return total            
+
+    def _copy_users(self) -> int:
+        total = 0
+        inverse_choice = Command.inverse_choices(
+            (("role", serializers.UserReadSerializer.ROLES.items()), ))
+
+        for read_batch in self.client.get_users().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'email': row.email,
+                    'first_name': row.first_name,
+                    'last_name': row.last_name,
+                    'created_on': row.created_on,
+                    'role': inverse_choice['role'][row.role],
+                }
+                item = User(**item_data)
+                creation_queue.append(item)
+            total += len(User.objects.bulk_create(creation_queue))
         return total            
