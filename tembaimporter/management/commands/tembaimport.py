@@ -6,6 +6,7 @@ from functools import cache
 from typing import Any, Dict
 
 from django.contrib.auth.models import User
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models.query import QuerySet
 from temba.api.v2 import serializers
@@ -185,8 +186,9 @@ class Command(BaseCommand):
             copy_result = self._copy_topics()
             self.write_success('Copied %d topics.' % copy_result)
 
-        if User.objects.count() > 1:
-            # Skip if we have more than the default user
+        if User.objects.count() > 3:
+            # Skip if we have more than the default admin user and the AnonymousUser
+            # TODO: set the check for > 3 because I can't delete my test user right now
             self.write_notice('Skipping users.')
         else:
             copy_result = self._copy_users()
@@ -201,7 +203,8 @@ class Command(BaseCommand):
 
     def _flush_records(self) -> None:
         if self.default_user:
-            User.objects.exclude(pk=self.default_user.pk).all().delete()
+            User.objects.exclude(
+                pk=self.default_user.pk).exclude(username=settings.ANONYMOUS_USER_NAME).all().delete()
         else:
             User.objects.all().delete()
         Topic.objects.all().delete()
