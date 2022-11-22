@@ -604,7 +604,6 @@ class Command(BaseCommand):
                     'modified_by': self.default_user,
                     'uuid': row.uuid,
                     'name': row.name,
-                    'config': row.config,
                     'ticketer_type': row.type,
                 }
                 item = Ticketer(**item_data)
