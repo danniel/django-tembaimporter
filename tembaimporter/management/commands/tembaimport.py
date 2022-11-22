@@ -11,12 +11,14 @@ from django.db.models.query import QuerySet
 from temba.api.v2 import serializers
 from temba.archives.models import Archive
 from temba.campaigns.models import Campaign, CampaignEvent
-from temba.contacts.models import (Contact, ContactField, ContactGroup,
-                                   ContactGroupCount, ContactURN, URN)
-from temba.channels.models import Channel, ChannelEvent, ChannelCount
+from temba.channels.models import Channel, ChannelCount, ChannelEvent
+from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
+                                   ContactGroupCount, ContactURN)
+from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org
-from temba.msgs.models import Broadcast, Label, Msg, BroadcastMsgCount
+from temba.tickets.models import Ticketer
 from temba_client.v2 import TembaClient
+
 
 logger = logging.getLogger("temba_client")
 logger.setLevel(logging.DEBUG)
@@ -170,6 +172,12 @@ class Command(BaseCommand):
             copy_result = self._copy_channel_events()
             self.write_success('Copied %d channel events.' % copy_result)
 
+        if Ticketer.objects.count():
+            self.write_notice('Skipping ticketers.')
+        else:
+            copy_result = self._copy_ticketers()
+            self.write_success('Copied %d ticketers.' % copy_result)
+
 
     def write_success(self, message: str):
         self.stdout.write(self.style.SUCCESS(message))
@@ -178,6 +186,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
+        Ticketer.objects.all().delete()
         ChannelEvent.objects.all().delete()
         Msg.objects.all().delete()
         BroadcastMsgCount.objects.all().delete()
@@ -582,4 +591,23 @@ class Command(BaseCommand):
                     label_through_queue.append(
                         Msg.labels.through(msg_id=msg.id, label_id=lid))
             Msg.labels.through.objects.bulk_create(label_through_queue)
+        return total            
+
+    def _copy_ticketers(self) -> int:
+        total = 0
+        for read_batch in self.client.get_ticketers().iterfetches(retry_on_rate_exceed=True):
+            creation_queue = []
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
+                    'uuid': row.uuid,
+                    'name': row.name,
+                    'config': row.config,
+                    'ticketer_type': row.type,
+                }
+                item = Ticketer(**item_data)
+                creation_queue.append(item)
+            total += len(Ticketer.objects.bulk_create(creation_queue))
         return total            
