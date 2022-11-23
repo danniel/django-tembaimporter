@@ -14,6 +14,7 @@ from temba.campaigns.models import Campaign, CampaignEvent
 from temba.channels.models import Channel, ChannelCount, ChannelEvent
 from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
+from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org, User
 from temba.tickets.models import Ticketer, Topic
@@ -113,6 +114,12 @@ class Command(BaseCommand):
         # Copy data from the remote API
         # The order in which we copy the data is important because of object relationships
 
+        if AdminBoundary.objects.count():
+            self.write_notice('Skipping the administrative boundaries.')
+        else:
+            copy_result = self._copy_boundaries()
+            self.write_success('Copied %d administrative boundaries.' % copy_result)
+
         self._update_default_org()
         self.write_success('Updated the default Org (Workspace).')
 
@@ -204,11 +211,23 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
+        """
+        Delete most of the existing database records before importing them
+        again from the remote host though the API
+        """
+        # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
             User.objects.exclude(
                 pk=self.default_user.pk).exclude(username=settings.ANONYMOUS_USER_NAME).all().delete()
         else:
             User.objects.all().delete()
+        
+        # Delete administrative boundaries starting with the lowest administrative level
+        AdminBoundary.objects.filter(level=3).delete()
+        AdminBoundary.objects.filter(level=2).delete()
+        AdminBoundary.objects.filter(level=1).delete()
+        AdminBoundary.objects.all().delete()
+
         Topic.objects.all().delete()
         Ticketer.objects.all().delete()
         ChannelEvent.objects.all().delete()
@@ -260,13 +279,14 @@ class Command(BaseCommand):
         org_data = self.client.get_org()
         self.default_org.uuid = org_data.uuid
         self.default_org.name = org_data.name
-        self.default_org.country = org_data.country
+        # TODO: Country must be an AdminBoundary instance
+        # self.default_org.country = org_data.country
         self.default_org.languages = org_data.languages
         self.default_org.primary_language = org_data.primary_language
         self.default_org.timezone = org_data.timezone
         self.default_org.date_style = org_data.date_style
         self.default_org.credits = org_data.credits
-        self.default_org.anon = org_data.anon
+        self.default_org.is_anon = org_data.anon
         self.default_org.save()
 
     def _copy_archives(self) -> int:
@@ -691,4 +711,39 @@ class Command(BaseCommand):
                 item.save()
                 self.default_org.add_user(item, org_role)
                 total += 1
+        return total            
+
+    def _copy_boundaries(self) -> int:
+        total = 0
+        osm_id_to_pk = {}  # Map osm_id fields to primary keys
+        for level in range(0, 4):
+            for read_batch in self.client.get_boundaries().iterfetches(retry_on_rate_exceed=True):
+                creation_queue = []
+                boundary_aliases = {}  # Map osm_id fields to a list of alias names
+                for row in read_batch:
+                    # ignore boundaries on different levels than the current one
+                    if row.level != level:
+                        continue
+                    item_data = {
+                        'osm_id': row.osm_id,
+                        'name': row.name,
+                        'parent_id': osm_id_to_pk.get(row.parent.osm_id, None) if row.parent else None,
+                        'level': row.level,
+                        # 'geometry': row.geometry,  # We do not use the geometry
+                    }
+                    item = AdminBoundary(**item_data)
+                    creation_queue.append(item)
+                    boundary_aliases[item_data.osm_id] = []
+                    boundary_aliases[item_data.osm_id].append(row.aliases)
+                
+                boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
+                total += len(boundaries_created)
+
+                aliases_creation_queue = []
+                for boundary in boundaries_created:
+                    alias_names = boundary_aliases.get(boundary.osm_id, [])
+                    for alias_name in alias_names:
+                        aliases_creation_queue.append(BoundaryAlias(name=alias_name, boundary_id=boundary.id))
+                BoundaryAlias.objects.bulk_create(aliases_creation_queue)                
+
         return total            
