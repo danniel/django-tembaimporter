@@ -257,9 +257,8 @@ class Command(BaseCommand):
         return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
 
     def _update_default_org(self) -> Org:
-        for read_batch in self.client.get_archives().iterfetches(retry_on_rate_exceed=True):
-            for row in read_batch:
-                print(row)
+        for org_data in self.client.get_org().iterfetches(retry_on_rate_exceed=True):
+            print(org_data)
         #TODO:
         return self.default_org
 
