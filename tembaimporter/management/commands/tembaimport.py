@@ -222,7 +222,11 @@ class Command(BaseCommand):
         # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
             User.objects.exclude(
-                pk=self.default_user.pk).exclude(username=settings.ANONYMOUS_USER_NAME).all().delete()
+                pk=self.default_user.pk
+            ).exclude(
+                username=settings.ANONYMOUS_USER_NAME, 
+                username="test1@example.com"  # TODO: For now do not delete my test user
+            ).all().delete()
         else:
             User.objects.all().delete()
         
