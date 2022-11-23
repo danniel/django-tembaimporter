@@ -663,6 +663,7 @@ class Command(BaseCommand):
         for read_batch in self.client.get_users().iterfetches(retry_on_rate_exceed=True):
             for row in read_batch:
                 item_data = {
+                    'username': row.email,
                     'email': row.email,
                     'first_name': row.first_name,
                     'last_name': row.last_name,
