@@ -20,7 +20,7 @@ from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org, User
 from temba.tickets.models import Ticketer, Topic
 from temba.tickets.types.internal import InternalType
-from temba_client.v2 import TembaClient
+from temba_client.v2 import TembaClient, types as client_types
 
 
 UUID = TypeVar('UUID', bound=str)
@@ -314,6 +314,7 @@ class Command(BaseCommand):
         
         for read_batch in self.client.get_archives().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Archive] = []
+            row: client_types.Archive
             for row in read_batch:
                 # Older Temba versions use the "download_url" instead of "url"
                 url = row.download_url if not hasattr(row, 'url') else row.url
@@ -347,6 +348,7 @@ class Command(BaseCommand):
         
         for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ContactField] = []
+            row: client_types.Field
             for row in read_batch:          
                 item_data = {
                     **self.default_fields,
@@ -370,6 +372,7 @@ class Command(BaseCommand):
 
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ContactGroup] = []
+            row: client_types.Group
             for row in read_batch:
                 item_data = {
                     **self.default_fields,
@@ -398,6 +401,7 @@ class Command(BaseCommand):
             contact_group_uuids: dict[UUID, list[UUID]] = {}
             contact_urns: dict[UUID, list[str]] = {}
             creation_queue: list[Contact] = []
+            row: client_types.Contact
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -462,6 +466,7 @@ class Command(BaseCommand):
         groups_uuid_pk = self._get_groups_uuid_pk
         for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Campaign] = []
+            row: client_types.Campaign
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -482,6 +487,7 @@ class Command(BaseCommand):
         total = 0
         for read_batch in self.client.get_channels().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Channel] = []
+            row: client_types.Channel
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -510,6 +516,7 @@ class Command(BaseCommand):
 
         for read_batch in self.client.get_channel_events().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ChannelEvent] = []
+            row: client_types.ChannelEvent
             for row in read_batch:
                 # Skip channel events for channels which don't seem to exist anymore
                 if row.channel.uuid not in channels_uuid_pk:
@@ -534,6 +541,7 @@ class Command(BaseCommand):
         total = 0
         for read_batch in self.client.get_labels().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Label] = []
+            row: client_types.Label
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -563,6 +571,7 @@ class Command(BaseCommand):
             contact_uuids: dict[ID, list[UUID]] = {}
             creation_queue: list[Broadcast] = []
 
+            row: client_types.Broadcast
             for row in read_batch:
                 item_data = {
                     'id': row.id,
@@ -628,6 +637,7 @@ class Command(BaseCommand):
             creation_queue: list[Msg] = []
             label_uuids: dict[ID, list[UUID]] = {}
 
+            row: client_types.Message
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -672,6 +682,7 @@ class Command(BaseCommand):
         total = 0
         for read_batch in self.client.get_ticketers().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Ticketer] = []
+            row: client_types.Ticketer
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -693,6 +704,7 @@ class Command(BaseCommand):
         total = 0
         for read_batch in self.client.get_topics().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Topic] = []
+            row: client_types.Topic
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -715,6 +727,7 @@ class Command(BaseCommand):
             (("role", serializers.UserReadSerializer.ROLES.items()), ))
 
         for read_batch in self.client.get_users().iterfetches(retry_on_rate_exceed=True):
+            row: client_types.User
             for row in read_batch:
                 item_data = {
                     'username': row.email,
@@ -739,6 +752,7 @@ class Command(BaseCommand):
             for read_batch in self.client.get_boundaries().iterfetches(retry_on_rate_exceed=True):
                 creation_queue: list[AdminBoundary] = []
                 boundary_aliases: dict[int, list[str]] = {}  # Map osm_id fields to a list of alias names
+                row: client_types.Boundary
                 for row in read_batch:
                     # ignore boundaries on different levels than the current one
                     if row.level != level:
