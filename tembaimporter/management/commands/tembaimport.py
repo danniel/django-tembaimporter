@@ -732,7 +732,7 @@ class Command(BaseCommand):
                         item_path = parent_path + AdminBoundary.PADDED_PATH_SEPARATOR + row.name
                     else:
                         item_path = row.name
-                    osm_id_to_path[item.osm_id] = item_path
+                    osm_id_to_path[row.osm_id] = item_path
 
                     item_data = {
                         'osm_id': row.osm_id,
