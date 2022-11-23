@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.db.models.query import QuerySet
 from temba.api.v2 import serializers
 from temba.archives.models import Archive
@@ -728,17 +729,23 @@ class Command(BaseCommand):
                         'osm_id': row.osm_id,
                         'name': row.name,
                         'parent_id': osm_id_to_pk.get(row.parent.osm_id, None) if row.parent else None,
+                        'path': row.name if not row.parent else None,
+                        # 'simplified_geometry': row.geometry,  # We do not use the geometry
                         'level': row.level,
-                        'path': row.name if not row.parent else None
-                        # 'geometry': row.geometry,  # We do not use the geometry
+                        'lft': 0,
+                        'rght': 0,
+                        'tree_id': 0,
                     }
                     item = AdminBoundary(**item_data)
                     creation_queue.append(item)
                     boundary_aliases[row.osm_id] = []
                     boundary_aliases[row.osm_id].append(row.aliases)
                 
-                boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
-                total += len(boundaries_created)
+                with transaction.atomic():
+                    with AdminBoundary.objects.disable_mptt_updates():
+                        boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
+                        total += len(boundaries_created)
+                    AdminBoundary.objects.rebuild()
 
                 aliases_creation_queue = []
                 for boundary in boundaries_created:
