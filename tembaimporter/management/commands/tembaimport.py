@@ -80,7 +80,7 @@ class Command(BaseCommand):
         self.throttle_requests = False
         super().__init__(*args, **kwargs)
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser) -> None:
         parser.add_argument(
             'api_url', type=str, 
             help='Remote API host (ie: http://rapidpro.ilhasoft.mobi)')
@@ -94,7 +94,7 @@ class Command(BaseCommand):
             '--throttle', action='store_true', 
             help="Slow down the API interrogations by taking some pauses")
 
-    def handle(self, *args, **options):
+    def handle(self, *args, **options) -> None:
         api_url = Command.clean_api_url(
             options.get('api_url', os.environ.get('REMOTE_API_URL', '')))
         api_key = Command.clean_api_key(
@@ -208,10 +208,10 @@ class Command(BaseCommand):
             self.write_success('Copied %d users.' % copy_result)
 
 
-    def write_success(self, message: str):
+    def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
 
-    def write_notice(self, message: str):
+    def write_notice(self, message: str) -> None:
         self.stdout.write(self.style.NOTICE(message))
 
     def _flush_records(self) -> None:
@@ -456,9 +456,7 @@ class Command(BaseCommand):
                     ))
             Contact.groups.through.objects.bulk_create(group_through_queue)
             ContactURN.objects.bulk_create(contact_urns_queue)
-
             self.throttle()
-
         return total            
 
     def _copy_campaigns(self) -> int:
@@ -481,6 +479,7 @@ class Command(BaseCommand):
                 item = Campaign(**item_data)
                 creation_queue.append(item)
             total += len(Campaign.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_channels(self) -> int:
@@ -504,6 +503,7 @@ class Command(BaseCommand):
                 item = Channel(**item_data)
                 creation_queue.append(item)
             total += len(Channel.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_channel_events(self) -> int:
@@ -535,6 +535,7 @@ class Command(BaseCommand):
                 item = ChannelEvent(**item_data)
                 creation_queue.append(item)
             total += len(ChannelEvent.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_labels(self) -> int:
@@ -553,6 +554,7 @@ class Command(BaseCommand):
                 item = Label(**item_data)
                 creation_queue.append(item)
             total += len(Label.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_broadcasts(self) -> int:
@@ -617,6 +619,7 @@ class Command(BaseCommand):
             Broadcast.groups.through.objects.bulk_create(group_through_queue)
             Broadcast.contacts.through.objects.bulk_create(contact_through_queue)
             Broadcast.urns.through.objects.bulk_create(urn_through_queue)
+            self.throttle()
         return total            
 
     def _copy_messages(self) -> int:
@@ -676,6 +679,7 @@ class Command(BaseCommand):
                     label_through_queue.append(
                         Msg.labels.through(msg_id=msg.id, label_id=lid))
             Msg.labels.through.objects.bulk_create(label_through_queue)
+            self.throttle()
         return total            
 
     def _copy_ticketers(self) -> int:
@@ -698,6 +702,7 @@ class Command(BaseCommand):
                 item = Ticketer(**item_data)
                 creation_queue.append(item)
             total += len(Ticketer.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_topics(self) -> int:
@@ -719,6 +724,7 @@ class Command(BaseCommand):
                 item = Topic(**item_data)
                 creation_queue.append(item)
             total += len(Topic.objects.bulk_create(creation_queue))
+            self.throttle()
         return total            
 
     def _copy_users(self) -> int:
@@ -742,6 +748,7 @@ class Command(BaseCommand):
                 item.save()
                 self.default_org.add_user(item, org_role)
                 total += 1
+            self.throttle()
         return total            
 
     def _copy_boundaries(self) -> int:
@@ -800,5 +807,5 @@ class Command(BaseCommand):
                             modified_by=self.default_user,
                         ))
                 BoundaryAlias.objects.bulk_create(aliases_creation_queue)                
-
+                self.throttle()
         return total            
