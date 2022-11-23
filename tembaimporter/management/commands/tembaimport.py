@@ -5,7 +5,6 @@ from collections.abc import Iterable
 from functools import cache
 from typing import Any, Dict
 
-from django.contrib.auth.models import User
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models.query import QuerySet
@@ -16,7 +15,7 @@ from temba.channels.models import Channel, ChannelCount, ChannelEvent
 from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
-from temba.orgs.models import Org
+from temba.orgs.models import Org, User
 from temba.tickets.models import Ticketer, Topic
 from temba.tickets.types.internal import InternalType
 from temba_client.v2 import TembaClient
