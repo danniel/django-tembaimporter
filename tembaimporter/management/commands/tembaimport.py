@@ -742,10 +742,10 @@ class Command(BaseCommand):
                     boundary_aliases[row.osm_id].append(row.aliases)
                 
                 with transaction.atomic():
-                    with AdminBoundary.objects.disable_mptt_updates():
-                        boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
-                        total += len(boundaries_created)
-                    AdminBoundary.objects.rebuild()
+                    # with AdminBoundary.objects.disable_mptt_updates():
+                    boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
+                    total += len(boundaries_created)
+                    # AdminBoundary.objects.rebuild()  # TODO: Patch a TreeManager and rebuild the tree
 
                 aliases_creation_queue = []
                 for boundary in boundaries_created:
