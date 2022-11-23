@@ -113,7 +113,7 @@ class Command(BaseCommand):
         # Copy data from the remote API
         # The order in which we copy the data is important because of object relationships
 
-        self.default_org = self._update_default_org()
+        self._update_default_org()
         self.write_success('Updated the default Org (Workspace).')
 
         if ContactField.objects.count():
@@ -256,11 +256,18 @@ class Command(BaseCommand):
         """ Retrieve all existing Label uuids and their corresponding database id """
         return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
 
-    def _update_default_org(self) -> Org:
+    def _update_default_org(self):
         org_data = self.client.get_org()
-        print(org_data)
-        #TODO:
-        return self.default_org
+        self.default_org.uuid = org_data.uuid
+        self.default_org.name = org_data.name
+        self.default_org.country = org_data.country
+        self.default_org.languages = org_data.languages
+        self.default_org.primary_language = org_data.primary_language
+        self.default_org.timezone = org_data.timezone
+        self.default_org.date_style = org_data.date_style
+        self.default_org.credits = org_data.credits
+        self.default_org.anon = org_data.anon
+        self.default_org.save()
 
     def _copy_archives(self) -> int:
         total = 0
