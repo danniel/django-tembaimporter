@@ -278,8 +278,20 @@ class Command(BaseCommand):
 
     def _update_default_org(self):
         org_data = self.client.get_org()
-        # TODO: Country must be an AdminBoundary instance
-        # self.default_org.country = org_data.country
+
+        # Get the Org country by boundary name
+        try:
+            country = AdminBoundary.objects.filter(name=org_data.country)[0]
+        except IndexError:
+            # Get the Org country by boundary alias name
+            try:
+                country = BoundaryAlias.objects.filter(name=org_data.country)[0]
+            except IndexError:
+                self.default_org.country = None
+            else:
+                self.default_org.country = country
+        else:
+            self.default_org.country = country
 
         self.default_org.uuid = org_data.uuid
         self.default_org.name = org_data.name
