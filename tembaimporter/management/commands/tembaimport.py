@@ -662,16 +662,17 @@ class Command(BaseCommand):
             (("role", serializers.UserReadSerializer.ROLES.items()), ))
 
         for read_batch in self.client.get_users().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
             for row in read_batch:
                 item_data = {
                     'email': row.email,
                     'first_name': row.first_name,
                     'last_name': row.last_name,
                     'date_joined': row.created_on,
-                    'role': inverse_choice['role'][row.role],
                 }
+                org_role = inverse_choice['role'][row.role]
                 item = User(**item_data)
-                creation_queue.append(item)
-            total += len(User.objects.bulk_create(creation_queue))
+                # Save users one by one instead of doing it in batches
+                item.save()
+                self.default_org.add_user(item, org_role)
+                total += 1
         return total            
