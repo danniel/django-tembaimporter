@@ -278,10 +278,11 @@ class Command(BaseCommand):
 
     def _update_default_org(self):
         org_data = self.client.get_org()
-        self.default_org.uuid = org_data.uuid
-        self.default_org.name = org_data.name
         # TODO: Country must be an AdminBoundary instance
         # self.default_org.country = org_data.country
+
+        self.default_org.uuid = org_data.uuid
+        self.default_org.name = org_data.name
         self.default_org.languages = org_data.languages
         self.default_org.primary_language = org_data.primary_language
         self.default_org.timezone = org_data.timezone
@@ -748,7 +749,7 @@ class Command(BaseCommand):
                     item = AdminBoundary(**item_data)
                     creation_queue.append(item)
                     boundary_aliases[row.osm_id] = []
-                    boundary_aliases[row.osm_id].append(row.aliases)
+                    boundary_aliases[row.osm_id].extend(row.aliases)
                 
                 with transaction.atomic():
                     # with AdminBoundary.objects.disable_mptt_updates():
