@@ -717,6 +717,7 @@ class Command(BaseCommand):
     def _copy_boundaries(self) -> int:
         total = 0
         osm_id_to_pk = {}  # Map osm_id fields to primary keys
+        osm_id_to_path = {}  # Map osm_id fields to paths
         for level in range(0, 4):
             for read_batch in self.client.get_boundaries().iterfetches(retry_on_rate_exceed=True):
                 creation_queue = []
@@ -725,11 +726,19 @@ class Command(BaseCommand):
                     # ignore boundaries on different levels than the current one
                     if row.level != level:
                         continue
+
+                    if row.parent:
+                        parent_path = osm_id_to_path.get(row.parent.osm_id, "")
+                        item_path = parent_path + AdminBoundary.PADDED_PATH_SEPARATOR + row.name
+                    else:
+                        item_path = row.name
+                    osm_id_to_path[item.osm_id] = item_path
+
                     item_data = {
                         'osm_id': row.osm_id,
                         'name': row.name,
                         'parent_id': osm_id_to_pk.get(row.parent.osm_id, None) if row.parent else None,
-                        'path': row.name if not row.parent else None,
+                        'path': item_path,
                         # 'simplified_geometry': row.geometry,  # We do not use the geometry
                         'level': row.level,
                         'lft': 0,
