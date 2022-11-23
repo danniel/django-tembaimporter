@@ -113,6 +113,9 @@ class Command(BaseCommand):
         # Copy data from the remote API
         # The order in which we copy the data is important because of object relationships
 
+        self.default_org = self._update_default_org()
+        self.write_success('Updated the default Org (Workspace).')
+
         if ContactField.objects.count():
             self.write_notice('Skipping contact fields.')
         else:
@@ -223,6 +226,43 @@ class Command(BaseCommand):
         ContactGroup.objects.all().delete()
         ContactField.objects.all().delete()
 
+    @property
+    @cache
+    def _get_groups_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Group uuids and their corresponding database id """
+        return {item[0]: item[1] for item in ContactGroup.objects.values_list('uuid', 'pk')}
+
+    @property
+    @cache
+    def _get_contacts_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Contact uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Contact.objects.values_list('uuid', 'pk')}
+
+    @property
+    @cache
+    def _get_urns_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing URNs and their corresponding database id """
+        return {item[0]: item[1] for item in ContactURN.objects.values_list('identity', 'pk')}
+
+    @property
+    @cache
+    def _get_channels_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Channel uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Channel.objects.values_list('uuid', 'pk')}
+
+    @property
+    @cache
+    def _get_labels_uuid_pk(self) -> Dict[str, int]:
+        """ Retrieve all existing Label uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
+
+    def _update_default_org(self) -> Org:
+        for read_batch in self.client.get_archives().iterfetches(retry_on_rate_exceed=True):
+            for row in read_batch:
+                print(row)
+        #TODO:
+        return self.default_org
+
     def _copy_archives(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices(
@@ -302,36 +342,6 @@ class Command(BaseCommand):
             total += len(ContactGroup.objects.bulk_create(creation_queue))
             self.throttle()
         return total            
-
-    @property
-    @cache
-    def _get_groups_uuid_pk(self) -> Dict[str, int]:
-        """ Retrieve all existing Group uuids and their corresponding database id """
-        return {item[0]: item[1] for item in ContactGroup.objects.values_list('uuid', 'pk')}
-
-    @property
-    @cache
-    def _get_contacts_uuid_pk(self) -> Dict[str, int]:
-        """ Retrieve all existing Contact uuids and their corresponding database id """
-        return {item[0]: item[1] for item in Contact.objects.values_list('uuid', 'pk')}
-
-    @property
-    @cache
-    def _get_urns_pk(self) -> Dict[str, int]:
-        """ Retrieve all existing URNs and their corresponding database id """
-        return {item[0]: item[1] for item in ContactURN.objects.values_list('identity', 'pk')}
-
-    @property
-    @cache
-    def _get_channels_uuid_pk(self) -> Dict[str, int]:
-        """ Retrieve all existing Channel uuids and their corresponding database id """
-        return {item[0]: item[1] for item in Channel.objects.values_list('uuid', 'pk')}
-
-    @property
-    @cache
-    def _get_labels_uuid_pk(self) -> Dict[str, int]:
-        """ Retrieve all existing Label uuids and their corresponding database id """
-        return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
 
     def _copy_contacts(self) -> int:
         total = 0
