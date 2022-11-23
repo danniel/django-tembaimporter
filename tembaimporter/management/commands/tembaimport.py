@@ -751,7 +751,11 @@ class Command(BaseCommand):
                 for boundary in boundaries_created:
                     alias_names = boundary_aliases.get(boundary.osm_id, [])
                     for alias_name in alias_names:
-                        aliases_creation_queue.append(BoundaryAlias(name=alias_name, boundary_id=boundary.id))
+                        aliases_creation_queue.append(BoundaryAlias(
+                            name=alias_name, 
+                            boundary_id=boundary.id,
+                            created_by=self.default_user,
+                        ))
                 BoundaryAlias.objects.bulk_create(aliases_creation_queue)                
 
         return total            
