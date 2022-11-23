@@ -755,6 +755,7 @@ class Command(BaseCommand):
                             name=alias_name, 
                             boundary_id=boundary.id,
                             created_by=self.default_user,
+                            modified_by=self.default_user,
                         ))
                 BoundaryAlias.objects.bulk_create(aliases_creation_queue)                
 
