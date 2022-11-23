@@ -729,6 +729,7 @@ class Command(BaseCommand):
                         'name': row.name,
                         'parent_id': osm_id_to_pk.get(row.parent.osm_id, None) if row.parent else None,
                         'level': row.level,
+                        'path': row.name if not row.parent else None
                         # 'geometry': row.geometry,  # We do not use the geometry
                     }
                     item = AdminBoundary(**item_data)
