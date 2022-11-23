@@ -775,6 +775,7 @@ class Command(BaseCommand):
 
                 aliases_creation_queue: list[BoundaryAlias] = []
                 for boundary in boundaries_created:
+                    osm_id_to_pk[boundary.osm_id] = boundary.id
                     alias_names = boundary_aliases.get(boundary.osm_id, [])
                     for alias_name in alias_names:
                         aliases_creation_queue.append(BoundaryAlias(
