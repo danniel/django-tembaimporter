@@ -754,6 +754,7 @@ class Command(BaseCommand):
                         aliases_creation_queue.append(BoundaryAlias(
                             name=alias_name, 
                             boundary_id=boundary.id,
+                            org=self.default_org,
                             created_by=self.default_user,
                             modified_by=self.default_user,
                         ))
