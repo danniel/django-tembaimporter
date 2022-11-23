@@ -733,8 +733,8 @@ class Command(BaseCommand):
                     }
                     item = AdminBoundary(**item_data)
                     creation_queue.append(item)
-                    boundary_aliases[item_data.osm_id] = []
-                    boundary_aliases[item_data.osm_id].append(row.aliases)
+                    boundary_aliases[row.osm_id] = []
+                    boundary_aliases[row.osm_id].append(row.aliases)
                 
                 boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
                 total += len(boundaries_created)
