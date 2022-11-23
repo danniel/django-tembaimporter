@@ -224,6 +224,7 @@ class Command(BaseCommand):
             User.objects.all().delete()
         
         # Delete administrative boundaries starting with the lowest administrative level
+        BoundaryAlias.objects.all().delete()
         AdminBoundary.objects.filter(level=3).delete()
         AdminBoundary.objects.filter(level=2).delete()
         AdminBoundary.objects.filter(level=1).delete()
