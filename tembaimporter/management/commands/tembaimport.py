@@ -3,12 +3,12 @@ import os
 import time
 from collections.abc import Iterable
 from functools import cache
-from typing import Any, Dict
+from typing import Any, Dict, TypeVar
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.db.models.query import QuerySet
+from django.db.models import Model
 from temba.api.v2 import serializers
 from temba.archives.models import Archive
 from temba.campaigns.models import Campaign, CampaignEvent
@@ -22,6 +22,9 @@ from temba.tickets.models import Ticketer, Topic
 from temba.tickets.types.internal import InternalType
 from temba_client.v2 import TembaClient
 
+
+UUID = TypeVar('UUID', bound=str)
+ID = TypeVar('ID', bound=int)
 
 logger = logging.getLogger("temba_client")
 logger.setLevel(logging.DEBUG)
@@ -50,7 +53,7 @@ class Command(BaseCommand):
     @staticmethod
     def inverse_choices(mapping: Iterable[tuple[str, Iterable]]) -> list[dict[str, str]]:
         """ Inverse lookup to find the CHOICES key from the provided value """
-        result = {}
+        result: dict[str, str] = {}
         for row in mapping:
             result[row[0]] = {v: k for k, v in row[1]}
         return result
@@ -249,31 +252,31 @@ class Command(BaseCommand):
 
     @property
     @cache
-    def _get_groups_uuid_pk(self) -> Dict[str, int]:
+    def _get_groups_uuid_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing Group uuids and their corresponding database id """
         return {item[0]: item[1] for item in ContactGroup.objects.values_list('uuid', 'pk')}
 
     @property
     @cache
-    def _get_contacts_uuid_pk(self) -> Dict[str, int]:
+    def _get_contacts_uuid_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing Contact uuids and their corresponding database id """
         return {item[0]: item[1] for item in Contact.objects.values_list('uuid', 'pk')}
 
     @property
     @cache
-    def _get_urns_pk(self) -> Dict[str, int]:
+    def _get_urns_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing URNs and their corresponding database id """
         return {item[0]: item[1] for item in ContactURN.objects.values_list('identity', 'pk')}
 
     @property
     @cache
-    def _get_channels_uuid_pk(self) -> Dict[str, int]:
+    def _get_channels_uuid_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing Channel uuids and their corresponding database id """
         return {item[0]: item[1] for item in Channel.objects.values_list('uuid', 'pk')}
 
     @property
     @cache
-    def _get_labels_uuid_pk(self) -> Dict[str, int]:
+    def _get_labels_uuid_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing Label uuids and their corresponding database id """
         return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
 
@@ -310,7 +313,7 @@ class Command(BaseCommand):
             (("period", serializers.ArchiveReadSerializer.PERIODS.items()), ))
         
         for read_batch in self.client.get_archives().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[Archive] = []
             for row in read_batch:
                 # Older Temba versions use the "download_url" instead of "url"
                 url = row.download_url if not hasattr(row, 'url') else row.url
@@ -343,7 +346,7 @@ class Command(BaseCommand):
             (("value_type", serializers.ContactFieldReadSerializer.VALUE_TYPES.items()), ))
         
         for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[ContactField] = []
             for row in read_batch:          
                 item_data = {
                     **self.default_fields,
@@ -366,7 +369,7 @@ class Command(BaseCommand):
         ContactGroup.create_system_groups(self.default_org)
 
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[ContactGroup] = []
             for row in read_batch:
                 item_data = {
                     **self.default_fields,
@@ -392,9 +395,9 @@ class Command(BaseCommand):
         groups_uuid_pk = self._get_groups_uuid_pk
         
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
-            contact_group_uuids = {}
-            contact_urns = {}
-            creation_queue = []
+            contact_group_uuids: dict[UUID, list[UUID]] = {}
+            contact_urns: dict[UUID, list[str]] = {}
+            creation_queue: list[Contact] = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -430,8 +433,8 @@ class Command(BaseCommand):
             contacts_created = Contact.objects.bulk_create(creation_queue)
             total += len(contacts_created)
 
-            group_through_queue = []  # the m2m "through" objects
-            contact_urns_queue = []  # the ContactURN objects
+            group_through_queue: list[Model] = []  # the m2m "through" objects
+            contact_urns_queue: list[ContactURN] = []  # the ContactURN objects
             for contact in contacts_created:
                 for guuid in contact_group_uuids[contact.uuid]:
                     gid = groups_uuid_pk.get(guuid, None)
@@ -458,7 +461,7 @@ class Command(BaseCommand):
         total = 0
         groups_uuid_pk = self._get_groups_uuid_pk
         for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[Campaign] = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -478,7 +481,7 @@ class Command(BaseCommand):
     def _copy_channels(self) -> int:
         total = 0
         for read_batch in self.client.get_channels().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[Channel] = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -506,7 +509,7 @@ class Command(BaseCommand):
         contacts_uuid_pk = self._get_contacts_uuid_pk        
 
         for read_batch in self.client.get_channel_events().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[ChannelEvent] = []
             for row in read_batch:
                 # Skip channel events for channels which don't seem to exist anymore
                 if row.channel.uuid not in channels_uuid_pk:
@@ -530,7 +533,7 @@ class Command(BaseCommand):
     def _copy_labels(self) -> int:
         total = 0
         for read_batch in self.client.get_labels().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[Label] = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -555,10 +558,10 @@ class Command(BaseCommand):
         urns_pk = self._get_urns_pk
 
         for read_batch in self.client.get_broadcasts().iterfetches(retry_on_rate_exceed=True):
-            contact_group_uuids = {}
-            contact_urns = {}
-            contact_uuids = {}
-            creation_queue = []
+            contact_group_uuids: dict[ID, list[UUID]] = {}
+            contact_urns: dict[ID, list[str]] = {}
+            contact_uuids: dict[ID, list[UUID]] = {}
+            creation_queue: list[Broadcast] = []
 
             for row in read_batch:
                 item_data = {
@@ -584,9 +587,9 @@ class Command(BaseCommand):
             total += len(broadcasts_created)
 
             # the m2m "through" objects
-            group_through_queue = []  
-            contact_through_queue = []
-            urn_through_queue = []
+            group_through_queue: list[Model] = []  
+            contact_through_queue: list[Model] = []
+            urn_through_queue: list[Model] = []
             
             for broadcast in broadcasts_created:
                 for guuid in contact_group_uuids[broadcast.id]:
@@ -622,8 +625,8 @@ class Command(BaseCommand):
         ))
         
         for read_batch in self.client.get_messages().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
-            label_uuids = {}
+            creation_queue: list[Msg] = []
+            label_uuids: dict[ID, list[UUID]] = {}
 
             for row in read_batch:
                 item_data = {
@@ -656,7 +659,7 @@ class Command(BaseCommand):
             msgs_created = Msg.objects.bulk_create(creation_queue)
             total += len(msgs_created)
 
-            label_through_queue = []
+            label_through_queue: list[Model] = []
             for msg in msgs_created:
                 for luuid in label_uuids[msg.id]:
                     lid = labels_uuid_pk.get(luuid, None)
@@ -668,7 +671,7 @@ class Command(BaseCommand):
     def _copy_ticketers(self) -> int:
         total = 0
         for read_batch in self.client.get_ticketers().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[Ticketer] = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -689,7 +692,7 @@ class Command(BaseCommand):
     def _copy_topics(self) -> int:
         total = 0
         for read_batch in self.client.get_topics().iterfetches(retry_on_rate_exceed=True):
-            creation_queue = []
+            creation_queue: list[Topic] = []
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
@@ -730,12 +733,12 @@ class Command(BaseCommand):
 
     def _copy_boundaries(self) -> int:
         total = 0
-        osm_id_to_pk = {}  # Map osm_id fields to primary keys
-        osm_id_to_path = {}  # Map osm_id fields to paths
+        osm_id_to_pk: dict[int, ID] = {}  # Map osm_id fields to primary keys
+        osm_id_to_path: dict[int, str] = {}  # Map osm_id fields to paths
         for level in range(0, 4):
             for read_batch in self.client.get_boundaries().iterfetches(retry_on_rate_exceed=True):
-                creation_queue = []
-                boundary_aliases = {}  # Map osm_id fields to a list of alias names
+                creation_queue: list[AdminBoundary] = []
+                boundary_aliases: dict[int, list[str]] = {}  # Map osm_id fields to a list of alias names
                 for row in read_batch:
                     # ignore boundaries on different levels than the current one
                     if row.level != level:
@@ -770,7 +773,7 @@ class Command(BaseCommand):
                     total += len(boundaries_created)
                     # AdminBoundary.objects.rebuild()  # TODO: Patch a TreeManager and rebuild the tree
 
-                aliases_creation_queue = []
+                aliases_creation_queue: list[BoundaryAlias] = []
                 for boundary in boundaries_created:
                     alias_names = boundary_aliases.get(boundary.osm_id, [])
                     for alias_name in alias_names:
