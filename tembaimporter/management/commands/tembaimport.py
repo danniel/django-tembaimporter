@@ -71,7 +71,7 @@ class Command(BaseCommand):
         """ Pause the execution thread for a few seconds """
         if self.throttle_requests:
             SECONDS = 5
-            self.stdout.write("Sleeping %d seconds..." % SECONDS)
+            logger.info("Taking a %d second pause.", SECONDS)
             time.sleep(SECONDS)
 
     def __init__(self, *args, **kwargs):
@@ -113,7 +113,9 @@ class Command(BaseCommand):
             self.throttle_requests = True
 
         if options.get('flush'):
+            self.write_notice('Deleting existing database records...')
             self._flush_records()
+            self.write_success('Deleted existing database records.')
 
         # Copy data from the remote API
         # The order in which we copy the data is important because of object relationships
@@ -230,6 +232,7 @@ class Command(BaseCommand):
             ).all().delete()
         else:
             User.objects.all().delete()
+        logger.info("Deleted users.")
         
         # Delete administrative boundaries starting with the lowest administrative level
         BoundaryAlias.objects.all().delete()
@@ -237,23 +240,49 @@ class Command(BaseCommand):
         AdminBoundary.objects.filter(level=2).delete()
         AdminBoundary.objects.filter(level=1).delete()
         AdminBoundary.objects.all().delete()
+        logger.info("Deleted boundaries.")
 
         Topic.objects.all().delete()
+        logger.info("Deleted topics.")
+
         Ticketer.objects.all().delete()
+        logger.info("Deleted ticketers.")
+
         ChannelEvent.objects.all().delete()
+        logger.info("Deleted channel events.")
+
         Msg.objects.all().delete()
+        logger.info("Deleted messages.")
+
         BroadcastMsgCount.objects.all().delete()
         Broadcast.objects.all().delete()
+        logger.info("Deleted broadcasts.")
+
         Label.objects.all().delete()
+        logger.info("Deleted labels.")
+
         ChannelCount.objects.all().delete()
         Channel.objects.all().delete()
+        logger.info("Deleted channels.")
+        
         Campaign.objects.all().delete()
+        logger.info("Deleted campaigns.")
+
         Archive.objects.all().delete()
+        logger.info("Deleted archives.")
+
         ContactURN.objects.all().delete()
+        logger.info("Deleted contact URNs.")
+
         Contact.objects.all().delete()
+        logger.info("Deleted contacts.")
+
         ContactGroupCount.objects.all().delete()
         ContactGroup.objects.all().delete()
+        logger.info("Deleted contact groups.")
+
         ContactField.objects.all().delete()
+        logger.info("Deleted contact fields.")
 
     @property
     @cache
@@ -343,6 +372,7 @@ class Command(BaseCommand):
                 item = Archive(**item_data)
                 creation_queue.append(item)
             total += len(Archive.objects.bulk_create(creation_queue))
+            logger.info("Total archives bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -365,6 +395,7 @@ class Command(BaseCommand):
                 item = ContactField(**item_data)
                 creation_queue.append(item)
             total += len(ContactField.objects.bulk_create(creation_queue))
+            logger.info("Total contact fields bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -392,6 +423,7 @@ class Command(BaseCommand):
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
             total += len(ContactGroup.objects.bulk_create(creation_queue))
+            logger.info("Total groups bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -441,6 +473,7 @@ class Command(BaseCommand):
 
             contacts_created = Contact.objects.bulk_create(creation_queue)
             total += len(contacts_created)
+            logger.info("Total contacts bulk created: %d.", total)
 
             group_through_queue: list[Model] = []  # the m2m "through" objects
             contact_urns_queue: list[ContactURN] = []  # the ContactURN objects
@@ -461,6 +494,7 @@ class Command(BaseCommand):
                     ))
             Contact.groups.through.objects.bulk_create(group_through_queue)
             ContactURN.objects.bulk_create(contact_urns_queue)
+            logger.info("Added groups and URNs to the created contacts.")
             self.throttle()
         return total            
 
@@ -484,6 +518,7 @@ class Command(BaseCommand):
                 item = Campaign(**item_data)
                 creation_queue.append(item)
             total += len(Campaign.objects.bulk_create(creation_queue))
+            logger.info("Total campaigns bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -508,6 +543,7 @@ class Command(BaseCommand):
                 item = Channel(**item_data)
                 creation_queue.append(item)
             total += len(Channel.objects.bulk_create(creation_queue))
+            logger.info("Total channels bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -540,6 +576,7 @@ class Command(BaseCommand):
                 item = ChannelEvent(**item_data)
                 creation_queue.append(item)
             total += len(ChannelEvent.objects.bulk_create(creation_queue))
+            logger.info("Total channel events bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -559,6 +596,7 @@ class Command(BaseCommand):
                 item = Label(**item_data)
                 creation_queue.append(item)
             total += len(Label.objects.bulk_create(creation_queue))
+            logger.info("Total labels bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -601,6 +639,7 @@ class Command(BaseCommand):
 
             broadcasts_created = Broadcast.objects.bulk_create(creation_queue)
             total += len(broadcasts_created)
+            logger.info("Total broadcasts bulk created: %d.", total)
 
             # the m2m "through" objects
             group_through_queue: list[Model] = []  
@@ -624,6 +663,7 @@ class Command(BaseCommand):
             Broadcast.groups.through.objects.bulk_create(group_through_queue)
             Broadcast.contacts.through.objects.bulk_create(contact_through_queue)
             Broadcast.urns.through.objects.bulk_create(urn_through_queue)
+            logger.info("Added groups, contacts, and URNs to created broadcasts.")
             self.throttle()
         return total            
 
@@ -676,6 +716,7 @@ class Command(BaseCommand):
 
             msgs_created = Msg.objects.bulk_create(creation_queue)
             total += len(msgs_created)
+            logger.info("Total messages bulk created: %d.", total)
 
             label_through_queue: list[Model] = []
             for msg in msgs_created:
@@ -684,6 +725,7 @@ class Command(BaseCommand):
                     label_through_queue.append(
                         Msg.labels.through(msg_id=msg.id, label_id=lid))
             Msg.labels.through.objects.bulk_create(label_through_queue)
+            logger.info("Added labels to created messages.")
             self.throttle()
         return total            
 
@@ -707,6 +749,7 @@ class Command(BaseCommand):
                 item = Ticketer(**item_data)
                 creation_queue.append(item)
             total += len(Ticketer.objects.bulk_create(creation_queue))
+            logger.info("Total ticketers bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -729,6 +772,7 @@ class Command(BaseCommand):
                 item = Topic(**item_data)
                 creation_queue.append(item)
             total += len(Topic.objects.bulk_create(creation_queue))
+            logger.info("Total topics bulk created: %d.", total)
             self.throttle()
         return total            
 
@@ -753,6 +797,7 @@ class Command(BaseCommand):
                 item.save()
                 self.default_org.add_user(item, org_role)
                 total += 1
+            logger.info("Total users created: %d.", total)
             self.throttle()
         return total            
 
@@ -798,6 +843,7 @@ class Command(BaseCommand):
                     boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
                     total += len(boundaries_created)
                     # AdminBoundary.objects.rebuild()  # TODO: Patch a TreeManager and rebuild the tree
+                logger.info("Total boundaries bulk created: %d.", total)
 
                 aliases_creation_queue: list[BoundaryAlias] = []
                 for boundary in boundaries_created:
@@ -811,6 +857,7 @@ class Command(BaseCommand):
                             created_by=self.default_user,
                             modified_by=self.default_user,
                         ))
-                BoundaryAlias.objects.bulk_create(aliases_creation_queue)                
+                BoundaryAlias.objects.bulk_create(aliases_creation_queue)
+                logger.info("Added aliases to created boundaries.")
                 self.throttle()
         return total            
