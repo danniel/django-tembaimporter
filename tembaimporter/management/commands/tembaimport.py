@@ -15,12 +15,14 @@ from temba.campaigns.models import Campaign, CampaignEvent
 from temba.channels.models import Channel, ChannelCount, ChannelEvent
 from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
+from temba.flows.models import Flow, FlowRun, FlowStart
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org, User
 from temba.tickets.models import Ticketer, Topic
 from temba.tickets.types.internal import InternalType
-from temba_client.v2 import TembaClient, types as client_types
+from temba_client.v2 import TembaClient
+from temba_client.v2 import types as client_types
 
 
 UUID = TypeVar('UUID', bound=str)
@@ -209,6 +211,12 @@ class Command(BaseCommand):
             copy_result = self._copy_users()
             self.write_success('Copied %d users.' % copy_result)
 
+        # if Flow.objects.count():
+        #     self.write_notice('Skipping flows.')
+        # else:
+        #     copy_result = self._copy_flows()
+        #     self.write_success('Copied %d flows.' % copy_result)
+
 
     def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
@@ -283,6 +291,9 @@ class Command(BaseCommand):
 
         ContactField.objects.all().delete()
         logger.info("Deleted contact fields.")
+
+        # Flow.objects.all().delete()
+        # logger.info("Deleted flows.")
 
     @property
     @cache
@@ -860,4 +871,31 @@ class Command(BaseCommand):
                 BoundaryAlias.objects.bulk_create(aliases_creation_queue)
                 logger.info("Added aliases to created boundaries.")
                 self.throttle()
+        return total            
+
+    def _copy_flows(self) -> int:
+        total = 0
+        for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
+            creation_queue: list[Flow] = []
+            row: client_types.Flow
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'modified_by': self.default_user,
+                    'uuid': row.uuid,
+                    'name': row.name,
+                    'created_on': row.created_on,
+                    'modified_on': row.modified_on,
+                    'archived': row.archived,
+                    'expires': row.expires,
+                    'runs': row.runs,
+                }
+                # TODO: results
+                # TODO: parent_refs
+                item = Flow(**item_data)
+                creation_queue.append(item)
+            total += len(Flow.objects.bulk_create(creation_queue))
+            logger.info("Total flows bulk created: %d.", total)
+            self.throttle()
         return total            
