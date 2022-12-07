@@ -211,11 +211,11 @@ class Command(BaseCommand):
             copy_result = self._copy_users()
             self.write_success('Copied %d users.' % copy_result)
 
-        # if Flow.objects.count():
-        #     self.write_notice('Skipping flows.')
-        # else:
-        #     copy_result = self._copy_flows()
-        #     self.write_success('Copied %d flows.' % copy_result)
+        if Flow.objects.count():
+            self.write_notice('Skipping flows.')
+        else:
+            copy_result = self._copy_flows()
+            self.write_success('Copied %d flows.' % copy_result)
 
 
     def write_success(self, message: str) -> None:
@@ -874,6 +874,10 @@ class Command(BaseCommand):
         return total            
 
     def _copy_flows(self) -> int:
+        inverse_choice = Command.inverse_choices((
+            ("type", serializers.FlowReadSerializer.FLOW_TYPES.items()), 
+        ))
+
         total = 0
         for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Flow] = []
@@ -887,11 +891,12 @@ class Command(BaseCommand):
                     'name': row.name,
                     'created_on': row.created_on,
                     'modified_on': row.modified_on,
-                    'archived': row.archived,
-                    'expires': row.expires,
+                    'is_archived': row.archived,
+                    'expires_after_minutes': row.expires,
                     'runs': row.runs,
+                    'flow_type': inverse_choice[row.type],
+                    Flow.METADATA_RESULTS: row.results,
                 }
-                # TODO: results
                 # TODO: parent_refs
                 item = Flow(**item_data)
                 creation_queue.append(item)
