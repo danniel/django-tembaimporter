@@ -993,7 +993,7 @@ class Command(BaseCommand):
                 for guuid in group_uuids[flow_start.uuid]:
                     gid = groups_uuid_pk.get(guuid, None)
                     group_through_queue.append(
-                        FlowStart.groups.through(flowstart_id=flow_start.id, group_id=gid))
+                        FlowStart.groups.through(flowstart_id=flow_start.id, contactgroup_id=gid))
                 for cuuid in contact_uuids[flow_start.uuid]:
                     cid = contacts_uuid_pk.get(cuuid, None)
                     contact_through_queue.append(
