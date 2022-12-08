@@ -1053,16 +1053,17 @@ class Command(BaseCommand):
                     #         'time': step.time,
                     #     } for step in row.path
                     # ],
-                    'results': [
-                        {
-                            'node': row.values[k].node, 
-                            'name': row.values[k].name, 
-                            'time': row.values[k].time, 
-                            'input': row.values[k].input, 
-                            'value': row.values[k].value, 
-                            'category': row.values[k].category
-                        } for k in row.values
-                    ],
+                    # 'results': [
+                    #     {
+                    #         'node': row.values[k].node, 
+                    #         'name': row.values[k].name, 
+                    #         'time': row.values[k].time, 
+                    #         'input': row.values[k].input, 
+                    #         'value': row.values[k].value, 
+                    #         'category': [category for category in row.values[k].category],
+                    #     } for k in row.values
+                    # ],
+                    'results': row.values,
                     'exited_on': row.exited_on,
                     'status': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
                 }
