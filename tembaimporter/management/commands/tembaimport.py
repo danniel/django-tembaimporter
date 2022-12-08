@@ -889,9 +889,12 @@ class Command(BaseCommand):
         inverse_choice = Command.inverse_choices((
             ("type", serializers.FlowReadSerializer.FLOW_TYPES.items()), 
         ))
+        labels_uuid_pk = self._get_labels_uuid_pk
         total = 0
+
         for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Flow] = []
+            label_uuids: dict[ID, list[UUID]] = {}
             row: client_types.Flow
             for row in read_batch:
                 item_data = {
@@ -908,11 +911,27 @@ class Command(BaseCommand):
                     'flow_type': inverse_choice[row.type],
                     'metadata': {Flow.METADATA_RESULTS: row.results},
                 }
-                # TODO: parent_refs
+                # TODO: parent_ but they all seem blank
                 item = Flow(**item_data)
                 creation_queue.append(item)
-            total += len(Flow.objects.bulk_create(creation_queue))
+
+                label_uuids[row.id] = []
+                for label in row.labels:
+                    label_uuids[row.id].append(label.uuid)
+            
+            flows_created = Flow.objects.bulk_create(creation_queue)
+            total += len(flows_created)
             logger.info("Total flows bulk created: %d.", total)
+
+            label_through_queue: list[Model] = []
+            for flow in flows_created:
+                for luuid in label_uuids[flow.id]:
+                    lid = labels_uuid_pk.get(luuid, None)
+                    label_through_queue.append(
+                        Flow.labels.through(flow_id=flow.id, label_id=lid))
+            Flow.labels.through.objects.bulk_create(label_through_queue)
+            logger.info("Added labels to created flows.")
+
             self.throttle()
         return total            
 
