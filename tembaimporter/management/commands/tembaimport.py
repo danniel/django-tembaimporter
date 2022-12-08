@@ -996,6 +996,7 @@ class Command(BaseCommand):
                         FlowStart.groups.through(flowstart_id=flow_start.id, contactgroup_id=gid))
                 for cuuid in contact_uuids[flow_start.uuid]:
                     cid = contacts_uuid_pk.get(cuuid, None)
+                    print(cuuid, ' = ', cid)
                     contact_through_queue.append(
                         FlowStart.contacts.through(flowstart_id=flow_start.id, contact_id=cid))
             FlowStart.contacts.through.objects.bulk_create(contact_through_queue)
