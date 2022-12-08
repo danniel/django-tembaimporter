@@ -907,11 +907,12 @@ class Command(BaseCommand):
                     'modified_on': row.modified_on,
                     'is_archived': row.archived,
                     'expires_after_minutes': row.expires,
-                    'runs': row.runs,
                     'flow_type': inverse_choice['type'][row.type],
-                    'metadata': {Flow.METADATA_RESULTS: row.results},
+                    'metadata': {
+                        Flow.METADATA_RESULTS: row.results,
+                        # Flow.METADATA_PARENT_REFS: row.parent_refs, # TODO: parent_ref but they all seem blank for our temba install
+                    },
                 }
-                # TODO: parent_ but they all seem blank
                 item = Flow(**item_data)
                 creation_queue.append(item)
 
