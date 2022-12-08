@@ -1049,7 +1049,7 @@ class Command(BaseCommand):
                     'start_id': None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
                     'responded': row.responded,
                     'path': row.path,
-                    'values': row.values,
+                    'results': row.values,
                     'exited_on': row.exited_on,
                     'exit_type': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
                 }
