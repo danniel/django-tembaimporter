@@ -909,7 +909,7 @@ class Command(BaseCommand):
                     'expires_after_minutes': row.expires,
                     'flow_type': inverse_choice['type'][row.type],
                     'metadata': {
-                        Flow.METADATA_RESULTS: row.results,
+                        Flow.METADATA_RESULTS: [{'key': result.key, 'name': result.name, 'categories': result.categories, 'node_uuids': result.node_uuids} for result in row.results],
                         # Flow.METADATA_PARENT_REFS: row.parent_refs, # TODO: parent_ref but they all seem blank for our temba install
                     },
                 }
