@@ -993,11 +993,11 @@ class Command(BaseCommand):
                 for guuid in group_uuids[flow_start.uuid]:
                     gid = groups_uuid_pk.get(guuid, None)
                     group_through_queue.append(
-                        FlowStart.groups.through(flow_start_id=flow_start.id, group_id=gid))
+                        FlowStart.groups.through(flowstart_id=flow_start.id, group_id=gid))
                 for cuuid in contact_uuids[flow_start.uuid]:
                     cid = contacts_uuid_pk.get(cuuid, None)
                     contact_through_queue.append(
-                        FlowStart.contacts.through(flow_start_id=flow_start.id, contact_id=cid))
+                        FlowStart.contacts.through(flowstart_id=flow_start.id, contact_id=cid))
             FlowStart.contacts.through.objects.bulk_create(contact_through_queue)
             logger.info("Added contacts to created flow starts.")
             FlowStart.groups.through.objects.bulk_create(group_through_queue)
