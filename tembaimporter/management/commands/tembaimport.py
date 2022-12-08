@@ -1055,9 +1055,9 @@ class Command(BaseCommand):
                     # ],
                     'results': {
                         k: {
-                            'node': r.node, 
+                            'node_uuid': r.node, 
                             'name': r.name, 
-                            'time': r.time, 
+                            'created_on': r.time, 
                             'input': r.input, 
                             'value': r.value, 
                             'category': r.category,
