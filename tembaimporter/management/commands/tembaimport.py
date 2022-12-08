@@ -908,7 +908,7 @@ class Command(BaseCommand):
                     'is_archived': row.archived,
                     'expires_after_minutes': row.expires,
                     'runs': row.runs,
-                    'flow_type': inverse_choice[row.type],
+                    'flow_type': inverse_choice['type'][row.type],
                     'metadata': {Flow.METADATA_RESULTS: row.results},
                 }
                 # TODO: parent_ but they all seem blank
@@ -957,7 +957,7 @@ class Command(BaseCommand):
                     'created_on': row.created_on,
                     'modified_on': row.modified_on,
                     'flow': flows_uuid_pk.get(row.flow.uuid, None),
-                    'status': inverse_choice[row.status],
+                    'status': inverse_choice['status'][row.status],
                     'restart_participants': row.restart_participants,
                     'exclude_active': row.exclude_active,
                     'extra': row.extra,
