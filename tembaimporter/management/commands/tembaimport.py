@@ -1034,8 +1034,8 @@ class Command(BaseCommand):
         
         total = 0
 
-        for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
-            creation_queue: list[Flow] = []
+        for read_batch in self.client.get_runs().iterfetches(retry_on_rate_exceed=True):
+            creation_queue: list[FlowRun] = []
             label_uuids: dict[UUID, list[UUID]] = {}
             row: client_types.Run
             for row in read_batch:
