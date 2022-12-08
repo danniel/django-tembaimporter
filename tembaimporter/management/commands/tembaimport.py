@@ -1066,7 +1066,6 @@ class Command(BaseCommand):
                     'exited_on': row.exited_on,
                     'status': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
                 }
-                print(item_data['path'])
                 item = FlowRun(**item_data)
                 item.save()
                 total += 1
