@@ -1050,7 +1050,14 @@ class Command(BaseCommand):
                     'responded': row.responded,
                     'path': row.path,
                     'results': [
-                        {'node': result.node, 'name': result.name, 'time': result.time, 'input': result.input, 'value': result.value, 'category': result.category} for result in row.values
+                        {
+                            'node': row.values[k].node, 
+                            'name': row.values[k].name, 
+                            'time': row.values[k].time, 
+                            'input': row.values[k].input, 
+                            'value': row.values[k].value, 
+                            'category': row.values[k].category
+                        } for k in row.values
                     ],
                     'exited_on': row.exited_on,
                     'status': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
