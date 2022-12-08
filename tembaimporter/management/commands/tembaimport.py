@@ -223,6 +223,12 @@ class Command(BaseCommand):
             copy_result = self._copy_flow_starts()
             self.write_success('Copied %d flow starts.' % copy_result)
 
+        if FlowRun.objects.count():
+            self.write_notice('Skipping flow runs.')
+        else:
+            copy_result = self._copy_flow_runs()
+            self.write_success('Copied %d flow runs.' % copy_result)
+
 
     def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
@@ -235,6 +241,9 @@ class Command(BaseCommand):
         Delete most of the existing database records before importing them
         again from the remote host though the API
         """
+        FlowRun.objects.all().delete()
+        logger.info("Deleted flow runs.")
+
         FlowStart.objects.all().delete()
         logger.info("Deleted flow starts.")
         
@@ -340,6 +349,12 @@ class Command(BaseCommand):
     def _get_flows_uuid_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing Flow uuids and their corresponding database id """
         return {item[0]: item[1] for item in Flow.objects.values_list('uuid', 'pk')}
+
+    @property
+    @cache
+    def _get_flowstarts_uuid_pk(self) -> Dict[UUID, ID]:
+        """ Retrieve all existing Flow Start uuids and their corresponding database id """
+        return {item[0]: item[1] for item in FlowStart.objects.values_list('uuid', 'pk')}
 
 
     def _update_default_org(self):
@@ -1008,3 +1023,42 @@ class Command(BaseCommand):
 
             self.throttle()
         return total            
+
+    def _copy_flow_runs(self) -> int:
+        inverse_choice = Command.inverse_choices((
+            ("exit_type", serializers.FlowRunReadSerializer.EXIT_TYPES.items()), 
+        ))
+        flows_uuid_pk = self._get_flows_uuid_pk
+        flowstarts_uuid_pk = self._get_flowstarts_uuid_pk
+        contacts_uuid_pk = self._get_contacts_uuid_pk
+        
+        total = 0
+
+        for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
+            creation_queue: list[Flow] = []
+            label_uuids: dict[UUID, list[UUID]] = {}
+            row: client_types.Run
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'uuid': row.uuid,
+                    'created_on': row.created_on,
+                    'modified_on': row.modified_on,
+                    'flow_id': None if not row.flow else flows_uuid_pk.get(row.flow.uuid, None),
+                    'contact_id': None if not row.contact else contacts_uuid_pk.get(row.contact.uuid, None),
+                    'start_id': None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
+                    'responded': row.responded,
+                    'path': row.path,
+                    'values': row.values,
+                    'exited_on': row.exited_on,
+                    'exit_type': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
+                }
+                item = FlowRun(**item_data)
+                creation_queue.append(item)
+            
+            flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
+            total += len(flow_runs_created)
+            logger.info("Total flow runs bulk created: %d.", total)
+            self.throttle()
+        return total      
