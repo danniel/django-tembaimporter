@@ -1036,7 +1036,6 @@ class Command(BaseCommand):
 
         for read_batch in self.client.get_runs().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[FlowRun] = []
-            label_uuids: dict[UUID, list[UUID]] = {}
             row: client_types.Run
             for row in read_batch:
                 item_data = {
@@ -1069,10 +1068,12 @@ class Command(BaseCommand):
                 }
                 print(item_data['path'])
                 item = FlowRun(**item_data)
-                creation_queue.append(item)
+                item.save()
+                total += 1
+                # creation_queue.append(item)
             
-            flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
-            total += len(flow_runs_created)
+            # flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
+            # total += len(flow_runs_created)
             logger.info("Total flow runs bulk created: %d.", total)
             self.throttle()
         return total      
