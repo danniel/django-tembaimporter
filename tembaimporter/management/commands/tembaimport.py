@@ -967,7 +967,7 @@ class Command(BaseCommand):
                     'flow_id': flows_uuid_pk.get(row.flow.uuid, None),
                     'status': inverse_choice['status'][row.status],
                     'restart_participants': row.restart_participants,
-                    'exclude_active': row.exclude_active,
+                    'include_active': not row.exclude_active,
                     'extra': row.extra,
                     'params': row.params,
                 }
