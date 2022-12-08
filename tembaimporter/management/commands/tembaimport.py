@@ -229,6 +229,9 @@ class Command(BaseCommand):
         Delete most of the existing database records before importing them
         again from the remote host though the API
         """
+        Flow.objects.all().delete()
+        logger.info("Deleted flows.")
+
         # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
             User.objects.exclude(
@@ -292,9 +295,6 @@ class Command(BaseCommand):
         ContactField.objects.all().delete()
         logger.info("Deleted contact fields.")
 
-        # Flow.objects.all().delete()
-        # logger.info("Deleted flows.")
-
     @property
     @cache
     def _get_groups_uuid_pk(self) -> Dict[UUID, ID]:
@@ -324,6 +324,13 @@ class Command(BaseCommand):
     def _get_labels_uuid_pk(self) -> Dict[UUID, ID]:
         """ Retrieve all existing Label uuids and their corresponding database id """
         return {item[0]: item[1] for item in Label.objects.values_list('uuid', 'pk')}
+
+    @property
+    @cache
+    def _get_flows_uuid_pk(self) -> Dict[UUID, ID]:
+        """ Retrieve all existing Flow uuids and their corresponding database id """
+        return {item[0]: item[1] for item in Flow.objects.values_list('uuid', 'pk')}
+
 
     def _update_default_org(self):
         org_data = self.client.get_org()
@@ -551,6 +558,7 @@ class Command(BaseCommand):
                     'country': row.country,
                     'device': row.device,
                 }
+                # TODO: channel_type?
                 item = Channel(**item_data)
                 creation_queue.append(item)
             total += len(Channel.objects.bulk_create(creation_queue))
@@ -877,7 +885,6 @@ class Command(BaseCommand):
         inverse_choice = Command.inverse_choices((
             ("type", serializers.FlowReadSerializer.FLOW_TYPES.items()), 
         ))
-
         total = 0
         for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Flow] = []
@@ -895,12 +902,75 @@ class Command(BaseCommand):
                     'expires_after_minutes': row.expires,
                     'runs': row.runs,
                     'flow_type': inverse_choice[row.type],
-                    Flow.METADATA_RESULTS: row.results,
+                    'metadata': {Flow.METADATA_RESULTS: row.results},
                 }
                 # TODO: parent_refs
                 item = Flow(**item_data)
                 creation_queue.append(item)
             total += len(Flow.objects.bulk_create(creation_queue))
             logger.info("Total flows bulk created: %d.", total)
+            self.throttle()
+        return total            
+
+    def _copy_flow_starts(self) -> int:
+        inverse_choice = Command.inverse_choices((
+            ("status", serializers.FlowStartReadSerializer.STATUSES.items()), 
+        ))
+        flows_uuid_pk = self._get_flows_uuid_pk
+        groups_uuid_pk = self._get_groups_uuid_pk
+        contacts_uuid_pk = self._get_contacts_uuid_pk
+
+        total = 0
+        for read_batch in self.client.get_flow_starts().iterfetches(retry_on_rate_exceed=True):
+            creation_queue: list[FlowStart] = []
+            group_uuids: dict[ID, list[UUID]] = {}
+            contact_uuids: dict[ID, list[UUID]] = {}
+            row: client_types.FlowStart
+            for row in read_batch:
+                item_data = {
+                    'org': self.default_org,
+                    'created_by': self.default_user,
+                    'uuid': row.uuid,
+                    'created_on': row.created_on,
+                    'modified_on': row.modified_on,
+                    'flow': flows_uuid_pk.get(row.flow.uuid, None),
+                    'status': inverse_choice[row.status],
+                    'restart_participants': row.restart_participants,
+                    'exclude_active': row.exclude_active,
+                    'extra': row.extra,
+                    'params': row.params,
+                }
+
+                item = FlowStart(**item_data)
+                creation_queue.append(item)
+
+                group_uuids[row.id] = []
+                for group in row.groups:
+                    group_uuids[row.id].append(group.uuid)
+
+                contact_uuids[row.id] = []
+                for contact in row.contacts:
+                    contact_uuids[row.id].append(contact.uuid)
+
+            flow_starts_created = FlowStart.objects.bulk_create(creation_queue)
+            total += len(flow_starts_created)
+            logger.info("Total flow starts bulk created: %d.", total)
+
+            group_through_queue: list[Model] = []
+            contact_through_queue: list[Model] = []
+            for flow_start in flow_starts_created:
+                for guuid in group_uuids[flow_start.id]:
+                    gid = groups_uuid_pk.get(guuid, None)
+                    group_through_queue.append(
+                        FlowStart.groups.through(flow_start_id=flow_start.id, group_id=gid))
+                for cuuid in contact_uuids[flow_start.id]:
+                    cid = contacts_uuid_pk.get(cuuid, None)
+                    contact_through_queue.append(
+                        FlowStart.contacts.through(flow_start_id=flow_start.id, contact_id=cid))
+            FlowStart.contacts.through.objects.bulk_create(contact_through_queue)
+            logger.info("Added contacts to created flow starts.")
+            FlowStart.groups.through.objects.bulk_create(group_through_queue)
+            logger.info("Added groups to created flow starts.")
+
             self.throttle()
         return total            
