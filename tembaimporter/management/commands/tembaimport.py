@@ -1051,7 +1051,7 @@ class Command(BaseCommand):
                     'path': row.path,
                     'results': row.values,
                     'exited_on': row.exited_on,
-                    'exit_type': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
+                    'status': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
                 }
                 item = FlowRun(**item_data)
                 creation_queue.append(item)
