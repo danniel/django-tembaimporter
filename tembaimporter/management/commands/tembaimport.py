@@ -1041,7 +1041,6 @@ class Command(BaseCommand):
             for row in read_batch:
                 item_data = {
                     'org': self.default_org,
-                    'created_by': self.default_user,
                     'uuid': row.uuid,
                     'created_on': row.created_on,
                     'modified_on': row.modified_on,
