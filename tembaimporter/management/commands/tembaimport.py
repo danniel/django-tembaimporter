@@ -1049,7 +1049,9 @@ class Command(BaseCommand):
                     'start_id': None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
                     'responded': row.responded,
                     'path': row.path,
-                    'results': row.values,
+                    'results': [
+                        {'node': result.node, 'name': result.name, 'time': result.time, 'input': result.input, 'value': result.value, 'category': result.category} for result in row.values
+                    ],
                     'exited_on': row.exited_on,
                     'status': '' if not row.exit_type else inverse_choice['exit_type'][row.exit_type],
                 }
