@@ -217,6 +217,12 @@ class Command(BaseCommand):
             copy_result = self._copy_flows()
             self.write_success('Copied %d flows.' % copy_result)
 
+        if FlowStart.objects.count():
+            self.write_notice('Skipping flow starts.')
+        else:
+            copy_result = self._copy_flow_starts()
+            self.write_success('Copied %d flow starts.' % copy_result)
+
 
     def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
@@ -234,7 +240,7 @@ class Command(BaseCommand):
         
         FlowRevision.objects.all().delete()
         Flow.objects.all().delete()
-        logger.info("Deleted flows.")
+        logger.info("Deleted flows and flow revisions.")
 
         # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
