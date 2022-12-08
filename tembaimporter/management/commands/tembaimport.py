@@ -15,7 +15,7 @@ from temba.campaigns.models import Campaign, CampaignEvent
 from temba.channels.models import Channel, ChannelCount, ChannelEvent
 from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
-from temba.flows.models import Flow, FlowRun, FlowStart
+from temba.flows.models import Flow, FlowRun, FlowStart, FlowRevision
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org, User
@@ -229,6 +229,10 @@ class Command(BaseCommand):
         Delete most of the existing database records before importing them
         again from the remote host though the API
         """
+        FlowStart.objects.all().delete()
+        logger.info("Deleted flow starts.")
+        
+        FlowRevision.objects.all().delete()
         Flow.objects.all().delete()
         logger.info("Deleted flows.")
 
