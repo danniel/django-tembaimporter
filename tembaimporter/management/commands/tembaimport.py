@@ -894,7 +894,7 @@ class Command(BaseCommand):
 
         for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[Flow] = []
-            label_uuids: dict[ID, list[UUID]] = {}
+            label_uuids: dict[UUID, list[UUID]] = {}
             row: client_types.Flow
             for row in read_batch:
                 item_data = {
@@ -916,9 +916,9 @@ class Command(BaseCommand):
                 item = Flow(**item_data)
                 creation_queue.append(item)
 
-                label_uuids[row.id] = []
+                label_uuids[row.uuid] = []
                 for label in row.labels:
-                    label_uuids[row.id].append(label.uuid)
+                    label_uuids[row.uuid].append(label.uuid)
             
             flows_created = Flow.objects.bulk_create(creation_queue)
             total += len(flows_created)
@@ -926,7 +926,7 @@ class Command(BaseCommand):
 
             label_through_queue: list[Model] = []
             for flow in flows_created:
-                for luuid in label_uuids[flow.id]:
+                for luuid in label_uuids[flow.uuid]:
                     lid = labels_uuid_pk.get(luuid, None)
                     label_through_queue.append(
                         Flow.labels.through(flow_id=flow.id, label_id=lid))
@@ -947,8 +947,8 @@ class Command(BaseCommand):
         total = 0
         for read_batch in self.client.get_flow_starts().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[FlowStart] = []
-            group_uuids: dict[ID, list[UUID]] = {}
-            contact_uuids: dict[ID, list[UUID]] = {}
+            group_uuids: dict[UUID, list[UUID]] = {}
+            contact_uuids: dict[UUID, list[UUID]] = {}
             row: client_types.FlowStart
             for row in read_batch:
                 item_data = {
@@ -968,13 +968,13 @@ class Command(BaseCommand):
                 item = FlowStart(**item_data)
                 creation_queue.append(item)
 
-                group_uuids[row.id] = []
+                group_uuids[row.uuid] = []
                 for group in row.groups:
-                    group_uuids[row.id].append(group.uuid)
+                    group_uuids[row.uuid].append(group.uuid)
 
-                contact_uuids[row.id] = []
+                contact_uuids[row.uuid] = []
                 for contact in row.contacts:
-                    contact_uuids[row.id].append(contact.uuid)
+                    contact_uuids[row.uuid].append(contact.uuid)
 
             flow_starts_created = FlowStart.objects.bulk_create(creation_queue)
             total += len(flow_starts_created)
@@ -983,11 +983,11 @@ class Command(BaseCommand):
             group_through_queue: list[Model] = []
             contact_through_queue: list[Model] = []
             for flow_start in flow_starts_created:
-                for guuid in group_uuids[flow_start.id]:
+                for guuid in group_uuids[flow_start.uuid]:
                     gid = groups_uuid_pk.get(guuid, None)
                     group_through_queue.append(
                         FlowStart.groups.through(flow_start_id=flow_start.id, group_id=gid))
-                for cuuid in contact_uuids[flow_start.id]:
+                for cuuid in contact_uuids[flow_start.uuid]:
                     cid = contacts_uuid_pk.get(cuuid, None)
                     contact_through_queue.append(
                         FlowStart.contacts.through(flow_start_id=flow_start.id, contact_id=cid))
