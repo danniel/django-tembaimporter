@@ -1048,7 +1048,12 @@ class Command(BaseCommand):
                     'contact_id': None if not row.contact else contacts_uuid_pk.get(row.contact.uuid, None),
                     'start_id': None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
                     'responded': row.responded,
-                    'path': row.path,
+                    'path': [
+                        {
+                            'node': step.node,
+                            'time': step.time,
+                        } for step in row.path
+                    ],
                     'results': [
                         {
                             'node': row.values[k].node, 
