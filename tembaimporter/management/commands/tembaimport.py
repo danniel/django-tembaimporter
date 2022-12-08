@@ -969,7 +969,7 @@ class Command(BaseCommand):
                     'restart_participants': row.restart_participants,
                     'include_active': not row.exclude_active,
                     'extra': row.extra,
-                    'params': row.params,
+                    #  'params': row.params,  # this seems to be an alias for row.extra
                 }
 
                 item = FlowStart(**item_data)
