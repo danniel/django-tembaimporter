@@ -900,6 +900,7 @@ class Command(BaseCommand):
                 item_data = {
                     'org': self.default_org,
                     'created_by': self.default_user,
+                    'saved_by': self.default_user,
                     'modified_by': self.default_user,
                     'uuid': row.uuid,
                     'name': row.name,
