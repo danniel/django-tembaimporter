@@ -1076,13 +1076,13 @@ class Command(BaseCommand):
                     "contact_id": None if not row.contact else contacts_uuid_pk.get(row.contact.uuid, None),
                     "start_id": None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
                     "responded": row.responded,
-                    "path": [
-                        {
-                            "node": step.node,
-                            "time": step.time,
-                        }
-                        for step in row.path
-                    ],
+                    # "path": [
+                    #     {
+                    #         "node": step.node,
+                    #         "time": step.time,
+                    #     }
+                    #     for step in row.path
+                    # ],
                     "results": {
                         k: {
                             "node_uuid": r.node,
@@ -1101,6 +1101,15 @@ class Command(BaseCommand):
                 item = FlowRun(**item_data)
                 item.save()
                 total += 1
+
+                item.path = [
+                    {
+                        "node": step.node,
+                        "time": step.time,
+                    }
+                    for step in row.path
+                ]
+                item.save(update_fields=("path",))
                 # creation_queue.append(item)
 
             # flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
