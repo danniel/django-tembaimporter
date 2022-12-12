@@ -1106,15 +1106,6 @@ class Command(BaseCommand):
                 item = FlowRun(**item_data)
                 item.save()
                 total += 1
-
-                item.path = [
-                    {
-                        "node": step.node,
-                        "time": step.time,
-                    }
-                    for step in row.path
-                ]
-                item.save(update_fields=("path",))
                 # creation_queue.append(item)
 
             # flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
