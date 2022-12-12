@@ -35,8 +35,9 @@ logger.setLevel(logging.DEBUG)
 
 class Command(BaseCommand):
     help = (
-        "Import Temba data from a remote API."
-        "If at least one row already exists for a specific model it will skip its import."
+        "Import Temba data from a remote API. "
+        "If at least one row already exists for a specific model it will skip its import. "
+        "It keeps the existing (default) admin account and the anonymous user account."
     )
 
     @staticmethod
@@ -245,7 +246,7 @@ class Command(BaseCommand):
         FlowRun.objects.all().delete()
         FlowRunCount.objects.all().delete()
         FlowCategoryCount.objects.all().delete()
-        logger.info("Deleted flow runs.")
+        logger.info("Deleted flow runs and their counts.")
 
         FlowStart.objects.all().delete()
         logger.info("Deleted flow starts.")
@@ -265,7 +266,7 @@ class Command(BaseCommand):
             ).all().delete()
         else:
             User.objects.all().delete()
-        logger.info("Deleted users.")
+        logger.info("Deleted users except the default admin and the anonymous user.")
         
         # Delete administrative boundaries starting with the lowest administrative level
         BoundaryAlias.objects.all().delete()
@@ -273,7 +274,7 @@ class Command(BaseCommand):
         AdminBoundary.objects.filter(level=2).delete()
         AdminBoundary.objects.filter(level=1).delete()
         AdminBoundary.objects.all().delete()
-        logger.info("Deleted boundaries.")
+        logger.info("Deleted boundaries and their aliases.")
 
         Topic.objects.all().delete()
         logger.info("Deleted topics.")
@@ -289,14 +290,14 @@ class Command(BaseCommand):
 
         BroadcastMsgCount.objects.all().delete()
         Broadcast.objects.all().delete()
-        logger.info("Deleted broadcasts.")
+        logger.info("Deleted broadcasts and their message counts.")
 
         Label.objects.all().delete()
         logger.info("Deleted labels.")
 
         ChannelCount.objects.all().delete()
         Channel.objects.all().delete()
-        logger.info("Deleted channels.")
+        logger.info("Deleted channels and their message counts.")
         
         Campaign.objects.all().delete()
         logger.info("Deleted campaigns.")
@@ -312,7 +313,7 @@ class Command(BaseCommand):
 
         ContactGroupCount.objects.all().delete()
         ContactGroup.objects.all().delete()
-        logger.info("Deleted contact groups.")
+        logger.info("Deleted contact groups and their counts.")
 
         ContactField.objects.all().delete()
         logger.info("Deleted contact fields.")
