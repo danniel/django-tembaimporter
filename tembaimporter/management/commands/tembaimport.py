@@ -299,8 +299,9 @@ class Command(BaseCommand):
         Channel.objects.all().delete()
         logger.info("Deleted channels and their message counts.")
         
+        CampaignEvent.objects.all().delete()
         Campaign.objects.all().delete()
-        logger.info("Deleted campaigns.")
+        logger.info("Deleted campaigns and their events.")
 
         Archive.objects.all().delete()
         logger.info("Deleted archives.")
