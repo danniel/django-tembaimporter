@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import uuid
 from collections.abc import Iterable
 from functools import cache
 from typing import Any, Dict, TypeVar
@@ -1067,6 +1068,16 @@ class Command(BaseCommand):
             creation_queue: list[FlowRun] = []
             row: client_types.Run
             for row in read_batch:
+                # Build the FlowRun path
+                item_path = []
+                path_len = len(row.path)
+                for i, segment in enumerate(row.path):
+                    item_path.append({
+                        "uuid": uuid.uuid4(),
+                        "node_uuid": segment.node,
+                        "arrived_on": segment.time,
+                        "exit_uuid": None if i == path_len-1 else uuid.uuid4(),
+                    })
                 item_data = {
                     "org": self.default_org,
                     "uuid": row.uuid,
@@ -1076,13 +1087,7 @@ class Command(BaseCommand):
                     "contact_id": None if not row.contact else contacts_uuid_pk.get(row.contact.uuid, None),
                     "start_id": None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
                     "responded": row.responded,
-                    # "path": [
-                    #     {
-                    #         "node": step.node,
-                    #         "time": step.time,
-                    #     }
-                    #     for step in row.path
-                    # ],
+                    "path": item_path,
                     "results": {
                         k: {
                             "node_uuid": r.node,
