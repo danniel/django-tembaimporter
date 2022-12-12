@@ -1102,14 +1102,11 @@ class Command(BaseCommand):
                     "exited_on": row.exited_on,
                     "status": "" if not row.exit_type else inverse_choice["exit_type"][row.exit_type],
                 }
-                print(item_data)
                 item = FlowRun(**item_data)
-                item.save()
-                total += 1
-                # creation_queue.append(item)
+                creation_queue.append(item)
 
-            # flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
-            # total += len(flow_runs_created)
+            flow_runs_created = FlowRun.objects.bulk_create(creation_queue)
+            total += len(flow_runs_created)
             logger.info("Total flow runs bulk created: %d.", total)
             self.throttle()
         return total
