@@ -1070,7 +1070,7 @@ class Command(BaseCommand):
             row: client_types.Run
             for row in read_batch:
                 # Skip flow runs which do not belong to any flow
-                if not row.flow:
+                if not row.flow or not flows_uuid_pk.get(row.flow.uuid, None):
                     logger.warning("Skipping flow run %s because it has no Flow", row.uuid)
                     continue
 
