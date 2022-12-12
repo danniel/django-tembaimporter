@@ -1073,10 +1073,10 @@ class Command(BaseCommand):
                 path_len = len(row.path)
                 for i, segment in enumerate(row.path):
                     item_path.append({
-                        "uuid": uuid.uuid4(),
+                        "uuid": str(uuid.uuid4()),
                         "node_uuid": segment.node,
                         "arrived_on": segment.time,
-                        "exit_uuid": None if i == path_len-1 else uuid.uuid4(),
+                        "exit_uuid": None if i == path_len-1 else str(uuid.uuid4()),
                     })
                 item_data = {
                     "org": self.default_org,
