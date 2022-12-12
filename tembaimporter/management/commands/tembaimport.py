@@ -15,7 +15,8 @@ from temba.campaigns.models import Campaign, CampaignEvent
 from temba.channels.models import Channel, ChannelCount, ChannelEvent
 from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
-from temba.flows.models import Flow, FlowRun, FlowStart, FlowRevision
+from temba.flows.models import (Flow, FlowRun, FlowStart, FlowRevision, 
+                                FlowRunCount, FlowCategoryCount)
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org, User
@@ -242,6 +243,8 @@ class Command(BaseCommand):
         again from the remote host though the API
         """
         FlowRun.objects.all().delete()
+        FlowRunCount.objects.all().delete()
+        FlowCategoryCount.objects.all().delete()
         logger.info("Deleted flow runs.")
 
         FlowStart.objects.all().delete()
