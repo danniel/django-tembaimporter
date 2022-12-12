@@ -25,6 +25,7 @@ from temba.contacts.models import (
 from temba.flows.models import (
     Flow,
     FlowCategoryCount,
+    FlowPathCount,
     FlowRevision,
     FlowRun,
     FlowRunCount,
@@ -259,6 +260,7 @@ class Command(BaseCommand):
         Delete most of the existing database records before importing them
         again from the remote host though the API
         """
+        FlowPathCount.objects.all().delete()
         FlowRun.objects.all().delete()
         FlowRunCount.objects.all().delete()
         FlowCategoryCount.objects.all().delete()
@@ -1071,7 +1073,7 @@ class Command(BaseCommand):
                 if not row.flow:
                     logger.warning("Skipping flow run %s because it has no Flow", row.uuid)
                     continue
-                
+
                 # Build the FlowRun path
                 item_path = []
                 path_len = len(row.path)
