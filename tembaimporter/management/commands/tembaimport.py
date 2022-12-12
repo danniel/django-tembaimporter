@@ -15,8 +15,8 @@ from temba.campaigns.models import Campaign, CampaignEvent
 from temba.channels.models import Channel, ChannelCount, ChannelEvent
 from temba.contacts.models import (URN, Contact, ContactField, ContactGroup,
                                    ContactGroupCount, ContactURN)
-from temba.flows.models import (Flow, FlowRun, FlowStart, FlowRevision, 
-                                FlowRunCount, FlowCategoryCount)
+from temba.flows.models import (Flow, FlowCategoryCount, FlowRevision, FlowRun,
+                                FlowRunCount, FlowStart)
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
 from temba.orgs.models import Org, User
