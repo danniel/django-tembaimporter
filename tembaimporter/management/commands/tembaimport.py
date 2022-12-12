@@ -1061,7 +1061,6 @@ class Command(BaseCommand):
         flows_uuid_pk = self._get_flows_uuid_pk
         flowstarts_uuid_pk = self._get_flowstarts_uuid_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk
-
         total = 0
 
         for read_batch in self.client.get_runs().iterfetches(retry_on_rate_exceed=True):
@@ -1072,12 +1071,14 @@ class Command(BaseCommand):
                 item_path = []
                 path_len = len(row.path)
                 for i, segment in enumerate(row.path):
-                    item_path.append({
-                        "uuid": str(uuid.uuid4()),
-                        "node_uuid": segment.node,
-                        "arrived_on": segment.time,
-                        "exit_uuid": None if i == path_len-1 else str(uuid.uuid4()),
-                    })
+                    item_path.append(
+                        {
+                            "uuid": str(uuid.uuid4()),
+                            "node_uuid": segment.node,
+                            "arrived_on": segment.time,
+                            "exit_uuid": None if i == path_len - 1 else str(uuid.uuid4()),
+                        }
+                    )
                 item_data = {
                     "org": self.default_org,
                     "uuid": row.uuid,
