@@ -16,8 +16,9 @@ Quick start
         'tembaimporter',
     ]
 
-2. On the destination installation create a default RapidPro admin account and
-a default RapidPro organization.
+
+2. On the destination installation create a default RapidPro admin account and a default RapidPro organization.
+
 
 3. From console, cd to where the manage.py file is located and run:
 
