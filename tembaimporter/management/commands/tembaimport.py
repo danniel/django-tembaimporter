@@ -127,7 +127,11 @@ class Command(BaseCommand):
         self.client = TembaClient(api_url, api_key)
 
         # Use the first admin user we can find in the destination database
-        self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]  # type: User
+        try:
+            self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]  # type: User
+        except IndexError:
+            self.write_error("You must first create one (and only one) admin user!")
+            return
 
         # Use the first organization we can find in the destination database
         self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]  # type: Org
@@ -253,6 +257,9 @@ class Command(BaseCommand):
     def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
 
+    def write_error(self, message: str) -> None:
+        self.stdout.write(self.style.ERROR(message))
+
     def write_notice(self, message: str) -> None:
         self.stdout.write(self.style.NOTICE(message))
 
@@ -279,8 +286,10 @@ class Command(BaseCommand):
 
         # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
-            User.objects.exclude(pk=self.default_user.pk).exclude(username=settings.ANONYMOUS_USER_NAME).exclude(
-                username="test1@example.com"  # TODO: For now do not delete my test user
+            User.objects.exclude(
+                pk=self.default_user.pk
+            ).exclude(
+                username=settings.ANONYMOUS_USER_NAME
             ).all().delete()
         else:
             User.objects.all().delete()
@@ -475,6 +484,7 @@ class Command(BaseCommand):
         system_group_names = ("active", "blocked", "stopped", "archived", "open tickets", )
 
         ContactGroup.create_system_groups(self.default_org)
+        logger.info("Created the system groups")
 
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ContactGroup] = []
@@ -495,7 +505,6 @@ class Command(BaseCommand):
                 }
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
-                logger.info("Appended to creation list: %s.", item)
 
             total += len(ContactGroup.objects.bulk_create(creation_queue))
             logger.info("Total groups bulk created: %d.", total)
