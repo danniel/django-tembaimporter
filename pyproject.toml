@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-tembaimporter"
-version = "0.1"
+version = "0.2"
 description = "A Django app for RapidPro Temba to copy content from another install"
 authors = []
 readme = "README.rst"

@@ -131,6 +131,7 @@ class Command(BaseCommand):
             self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]  # type: User
         except IndexError:
             self.write_error("You must first create one (and only one) admin user!")
+            self.write_notice("Sign up from the frontend, then set that account as superuser from console.")
             return
 
         # Use the first organization we can find in the destination database
