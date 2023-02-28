@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Model
+from temba.api.models import APIToken
 from temba.api.v2 import serializers
 from temba.archives.models import Archive
 from temba.campaigns.models import Campaign, CampaignEvent
@@ -33,7 +34,7 @@ from temba.flows.models import (
 )
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
-from temba.orgs.models import Org, User
+from temba.orgs.models import Org, User, UserSettings
 from temba.tickets.models import Ticketer, Topic
 from temba.tickets.types.internal import InternalType
 from temba_client.v2 import TembaClient
@@ -273,6 +274,9 @@ class Command(BaseCommand):
         Flow.objects.all().delete()
         logger.info("Deleted flows and flow revisions.")
 
+        APIToken.objects.all().delete()
+        UserSettings.objects.all().delete()
+        
         # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
             User.objects.exclude(pk=self.default_user.pk).exclude(username=settings.ANONYMOUS_USER_NAME).exclude(
