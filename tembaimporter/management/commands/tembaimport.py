@@ -492,6 +492,7 @@ class Command(BaseCommand):
                 }
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
+                logger.info("Appended to creation list: %s.", item)
 
             total += len(ContactGroup.objects.bulk_create(creation_queue))
             logger.info("Total groups bulk created: %d.", total)
