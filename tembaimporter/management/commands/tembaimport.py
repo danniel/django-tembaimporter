@@ -472,13 +472,16 @@ class Command(BaseCommand):
     def _copy_groups(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices((("status", serializers.ContactGroupReadSerializer.STATUSES.items()),))
+        system_group_names = ("active", "blocked", "stopped", "archived", "open tickets", )
 
-        # ContactGroup.create_system_groups(self.default_org)
+        ContactGroup.create_system_groups(self.default_org)
 
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ContactGroup] = []
             row: client_types.Group
             for row in read_batch:
+                if row.name and row.name.lower() in system_group_names:
+                    continue
                 item_data = {
                     **self.default_fields,
                     "uuid": row.uuid,
@@ -496,13 +499,6 @@ class Command(BaseCommand):
 
             total += len(ContactGroup.objects.bulk_create(creation_queue))
             logger.info("Total groups bulk created: %d.", total)
-
-            ContactGroup.objects.filter(name="Active").update(is_system=True, group_type=ContactGroup.TYPE_DB_ACTIVE)
-            ContactGroup.objects.filter(name="Blocked").update(is_system=True, group_type=ContactGroup.TYPE_DB_BLOCKED)
-            ContactGroup.objects.filter(name="Stopped").update(is_system=True, group_type=ContactGroup.TYPE_DB_STOPPED)
-            ContactGroup.objects.filter(name="Archived").update(is_system=True, group_type=ContactGroup.TYPE_DB_ARCHIVED)
-            ContactGroup.objects.filter(name="Open Tickets").update(is_system=True, group_type=ContactGroup.TYPE_SMART)
-            logger.info("Updated the system groups")
             self.throttle()
         return total
 
