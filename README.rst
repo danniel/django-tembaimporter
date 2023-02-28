@@ -28,7 +28,7 @@ Quick start
 
     2.3. You should see two users: the one you just created, and the anonymous account
 
-        ``from django.contrib.auth.model import User``
+        ``from django.contrib.auth.models import User``
 
         ``User.objects.all()``
 
