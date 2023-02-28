@@ -276,7 +276,7 @@ class Command(BaseCommand):
 
         APIToken.objects.all().delete()
         UserSettings.objects.all().delete()
-        
+
         # Delete users except the AnonymousUser and the default admin user
         if self.default_user:
             User.objects.exclude(pk=self.default_user.pk).exclude(username=settings.ANONYMOUS_USER_NAME).exclude(
@@ -473,7 +473,7 @@ class Command(BaseCommand):
         total = 0
         inverse_choice = Command.inverse_choices((("status", serializers.ContactGroupReadSerializer.STATUSES.items()),))
 
-        ContactGroup.create_system_groups(self.default_org)
+        # ContactGroup.create_system_groups(self.default_org)
 
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ContactGroup] = []
@@ -485,14 +485,23 @@ class Command(BaseCommand):
                     "name": row.name,
                     "query": row.query,
                     "status": inverse_choice["status"][row.status],
+                    "is_system": False,
                     # TODO:
                     # The API doesn't give us the group type so we assume they're all 'Manual'
                     "group_type": ContactGroup.TYPE_MANUAL,
                 }
                 item = ContactGroup(**item_data)
                 creation_queue.append(item)
+
             total += len(ContactGroup.objects.bulk_create(creation_queue))
             logger.info("Total groups bulk created: %d.", total)
+
+            ContactGroup.objects.filter(name="Active").update(is_system=True, group_type=ContactGroup.TYPE_DB_ACTIVE)
+            ContactGroup.objects.filter(name="Blocked").update(is_system=True, group_type=ContactGroup.TYPE_DB_BLOCKED)
+            ContactGroup.objects.filter(name="Stopped").update(is_system=True, group_type=ContactGroup.TYPE_DB_STOPPED)
+            ContactGroup.objects.filter(name="Archived").update(is_system=True, group_type=ContactGroup.TYPE_DB_ARCHIVED)
+            ContactGroup.objects.filter(name="Open Tickets").update(is_system=True, group_type=ContactGroup.TYPE_SMART)
+            logger.info("Updated the system groups")
             self.throttle()
         return total
 
