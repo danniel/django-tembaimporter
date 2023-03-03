@@ -44,3 +44,15 @@ Quick start
 
     ``python3 manage.py tembaimporter http://source.example.com SOURCE_API_KEY --flush --throttle``
 
+4. The app does not copy the channel types because they are not exported by the API. They must be set manually.
+
+    ``from temba.channels.models import Channel``
+
+    ``chan = Channel.objects.all()[0]``
+
+    ``chan.channel_type = 'FB'``
+    
+    ``chan.save()``
+
+    ``chan.get_channel_type_display()``
+
