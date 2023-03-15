@@ -6,6 +6,14 @@ Temba Importer is a Django app for copying data from a running RapidPro Temba
 installation to another one. This app must be added as a plugin to the 
 destination installation and it requires API access to the source install.
 
+The destination installation must have a single Org, a single AnonymousUser 
+and a single Admin account created. Everything else must be deleted before import
+(with the --flush parameter).
+
+The destination installation Admin account must use an email address which does
+not exist anywhere else in the RapidPro Temba database.
+
+
 Quick start
 -----------
 
@@ -42,7 +50,7 @@ Quick start
 
 3. From console, cd to where the manage.py file is located and run:
 
-    ``python3 manage.py tembaimporter http://source.example.com SOURCE_API_KEY --flush --throttle``
+    ``python3 manage.py tembaimport http://source.example.com SOURCE_API_KEY --flush --throttle``
 
 4. The app does not copy the channel types because they are not exported by the API. They must be set manually.
 
@@ -50,9 +58,18 @@ Quick start
 
     ``chan = Channel.objects.all()[0]``
 
-    ``chan.channel_type = 'FB'``
+    ``chan.channel_type = 'FB'  # For a FaceBook channel``
     
     ``chan.save()``
 
     ``chan.get_channel_type_display()``
 
+5. The app creates the System groups but it does not set the types for the other copied groups, because they are not exported by the API. By default it sets them as "M" ("Manual").
+
+    ``from temba.contacts.models import ContactGroup``
+
+    ``group = ContactGroup.objects.all()[0]``
+
+    ``group.group_type = 'Q'  # For a "Smart" group``
+    
+    ``group.save()``
