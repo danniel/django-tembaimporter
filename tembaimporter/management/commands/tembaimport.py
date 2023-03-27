@@ -793,7 +793,7 @@ class Command(BaseCommand):
                     "contact_id": contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     "contact_urn_id": urns_pk.get(row.urn, None) if row.urn else None,
                     "channel_id": channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
-                    "attachments": row.attachments,
+                    "attachments": [],
                     "created_on": row.created_on,
                     "sent_on": row.sent_on,
                     "modified_on": row.modified_on,
@@ -806,6 +806,10 @@ class Command(BaseCommand):
                 label_uuids[row.id] = []
                 for label in row.labels:
                     label_uuids[row.id].append(label.uuid)
+
+                for attachment in row.attachments:
+                    item_data["attachments"].append(
+                        "{}:{}".format(attachment["content_type"], attachment["content-url"]))
 
             msgs_created = Msg.objects.bulk_create(creation_queue)
             total += len(msgs_created)
