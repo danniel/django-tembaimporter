@@ -518,6 +518,9 @@ class Command(BaseCommand):
 
         groups_uuid_pk = self._get_groups_uuid_pk
 
+        fields_key_field = { 
+            field.key : field for field in ContactField.objects.all()}
+
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
             contact_group_uuids: dict[UUID, list[UUID]] = {}
             contact_urns: dict[UUID, list[str]] = {}
@@ -531,7 +534,7 @@ class Command(BaseCommand):
                     "uuid": row.uuid,
                     "name": row.name,
                     "language": row.language,
-                    "fields": row.fields,
+                    "fields": {},
                     "created_on": row.created_on,
                     "modified_on": row.modified_on,
                     "last_seen_on": row.last_seen_on,
@@ -548,6 +551,14 @@ class Command(BaseCommand):
                 else:
                     # The remote API is newer Temba install
                     item_data |= {"status": inverse_choice["status"][row.status] if row.status else None}
+
+                if row.fields:
+                    for field_key in row.fields.keys():
+                        field = fields_key_field.get(field_key)
+                        if field:
+                            item_data["fields"][str(field.uuid)] = {
+                                ContactField.ENGINE_TYPES[field.value_type]: row.fields.get(field_key)
+                            }
 
                 item = Contact(**item_data)
                 creation_queue.append(item)
@@ -632,6 +643,7 @@ class Command(BaseCommand):
                     "device": row.device,
                 }
                 # TODO: channel_type?
+                # TODO: config?
                 item = Channel(**item_data)
                 creation_queue.append(item)
             total += len(Channel.objects.bulk_create(creation_queue))
@@ -806,10 +818,6 @@ class Command(BaseCommand):
                 label_uuids[row.id] = []
                 for label in row.labels:
                     label_uuids[row.id].append(label.uuid)
-
-                for attachment in row.attachments:
-                    item_data["attachments"].append(
-                        "{}:{}".format(attachment["content_type"], attachment["content-url"]))
 
             msgs_created = Msg.objects.bulk_create(creation_queue)
             total += len(msgs_created)
