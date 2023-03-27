@@ -56,13 +56,22 @@ Quick start
 
     ``from temba.channels.models import Channel``
 
-    ``chan = Channel.objects.all()[0]``
+    ``chan1 = Channel.objects.all()[0]``
 
-    ``chan.channel_type = 'FB'  # For a FaceBook channel``
+    ``chan1.channel_type = 'FB'  # For a FaceBook channel``
     
-    ``chan.save()``
+    ``chan1.config = {"auth_token":"", "page_name":"", "secret":"", "callback_domain":"example.com"}``
+    
+    ``chan1.save()``
 
-    ``chan.get_channel_type_display()``
+    
+    ``chan2 = Channel.objects.all()[1]``
+
+    ``chan2.channel_type = 'TG'  # For a Telegram channel``
+    
+    ``chan2.config = {"auth_token":"", "callback_domain":"example.com"}``
+
+    ``chan2.save()``
 
 5. The app creates the System groups but it does not set the types for the other copied groups, because they are not exported by the API. By default it sets them as "M" ("Manual").
 
