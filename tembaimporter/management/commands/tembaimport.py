@@ -812,6 +812,12 @@ class Command(BaseCommand):
                     "text": row.text,
                 }
 
+                for attachment in row.attachments:
+                    content_type = attachment["content_type"]
+                    source_url = attachment["url"]
+                    destination_url = source_url  # TODO: download file from source_url and upload to destinaton_url
+                    item_data["attachments"].append("{}:{}".format(content_type, destination_url))
+
                 item = Msg(**item_data)
                 creation_queue.append(item)
 
