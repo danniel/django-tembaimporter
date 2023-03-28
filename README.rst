@@ -82,3 +82,12 @@ Quick start
     ``group.group_type = 'Q'  # For a "Smart" group``
     
     ``group.save()``
+
+
+Fix attachment paths
+-----------
+
+After you move the media files to the new location,
+you can update their URLs from the database by running:
+
+``python3 manage.py fixattachmentpath original.s3.us-east-1.amazonaws.com  new.s3.eu-west-1.amazonaws.com``
