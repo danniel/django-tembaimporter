@@ -641,7 +641,7 @@ class Command(BaseCommand):
                     "address": row.address,
                     "country": row.country,
                     "device": row.device,  # TODO
-                    "secret": "",  # TODO
+                    # "secret": "",  # TODO
                 }
                 # TODO: channel_type?
                 # TODO: config?
