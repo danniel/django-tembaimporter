@@ -45,7 +45,7 @@ UUID = TypeVar("UUID", bound=str)
 ID = TypeVar("ID", bound=int)
 
 logger = logging.getLogger("temba_client")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 class Command(BaseCommand):
@@ -229,9 +229,8 @@ class Command(BaseCommand):
             copy_result = self._copy_topics()
             self.write_success("Copied %d topics." % copy_result)
 
-        if User.objects.count() > 3:
+        if User.objects.count() > 2:
             # Skip if we have more than the default admin user and the AnonymousUser
-            # TODO: set the check for > 3 because I can't delete my test user right now
             self.write_notice("Skipping users.")
         else:
             copy_result = self._copy_users()
@@ -443,6 +442,7 @@ class Command(BaseCommand):
                     "url": url,
                     "build_time": 0,
                 }
+                # TODO: Download and move the actual archive file
                 item = Archive(**item_data)
                 creation_queue.append(item)
             total += len(Archive.objects.bulk_create(creation_queue))
@@ -640,7 +640,8 @@ class Command(BaseCommand):
                     "last_seen": row.last_seen,
                     "address": row.address,
                     "country": row.country,
-                    "device": row.device,
+                    "device": row.device,  # TODO
+                    "secret": "",  # TODO
                 }
                 # TODO: channel_type?
                 # TODO: config?
