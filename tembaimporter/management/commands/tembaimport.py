@@ -425,11 +425,9 @@ class Command(BaseCommand):
             for row in read_batch:
                 # Older Temba versions use the "download_url" instead of "url"
                 url = row.download_url if not hasattr(row, "url") else row.url
-                # Remove some common substrings in order to make the URL fit the 200 char limit
-                url = url.replace("https://rapidpro-static-app.s3.amazonaws.com", "")
-                url = url.replace("response-content-disposition=attachment%3B&", "")
-                url = url.replace("response-content-type=application%2Foctet&", "")
-                url = url.replace("response-content-encoding=none&", "")
+                
+                # Remove the extra URL parameters
+                url = url.split("?", 1)[0]
 
                 item_data = {
                     "org": self.default_org,
