@@ -50,7 +50,7 @@ Quick start
 
 3. From console, cd to where the manage.py file is located and run:
 
-    ``python3 manage.py tembaimport http://source.example.com SOURCE_API_KEY --flush --throttle``
+    ``python3 manage.py tembaimport http://source.example.com SOURCE_API_KEY admin-username@example.com AdminAccountPassword --flush --throttle``
 
 4. The app does not copy the channel types because they are not exported by the API. They must be set manually.
 

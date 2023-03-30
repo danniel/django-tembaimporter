@@ -1,5 +1,6 @@
 import logging
 import os
+import requests
 import time
 import uuid
 from collections.abc import Iterable
@@ -46,6 +47,51 @@ ID = TypeVar("ID", bound=int)
 
 logger = logging.getLogger("temba_client")
 logger.setLevel(logging.INFO)
+
+
+class WebSession():
+    """
+    A web session for sending regular web requests for data which
+    is not published by the API
+    """
+
+    def __init__(self, host_url: str, user: str, password: str) -> None:
+        if host_url.startswith("http://") or host_url.startswith("https://"):
+            self.host = host_url
+        else:
+            self.host = "https://" + host_url
+
+        self.user = user
+        self.password = password
+        self.session = requests.Session()
+
+    def get(self, path: str) -> requests.models.Response:
+        return self.session.get(self.host + path)
+
+    def post(self, path: str, data: dict) -> requests.models.Response:
+        full_url = self.host + path
+        self.session.headers.update({"referer": full_url})
+        if not data:
+            data = {}
+        return self.session.post(full_url, data=data)
+
+    def login(self) -> requests.models.Response:
+        self.get("/users/login/")
+        result = self.post("/users/login/", data={
+            "csrfmiddlewaretoken": self.session.cookies.get("csrftoken",""), 
+            "username": self.user, 
+            "password": self.password,
+        })
+        if result.statuc_code > 299 or result.status_code < 200:
+            logger.error("Web login failed!")
+            exit()
+        return result
+
+    @staticmethod
+    def create_web_session(api_url: str, admin_user: str, admin_pass: str) -> "WebSession":
+        ws = WebSession(api_url, admin_user, admin_pass)
+        ws.login()
+        return ws
 
 
 class Command(BaseCommand):
@@ -103,12 +149,22 @@ class Command(BaseCommand):
         parser.add_argument(
             "api_url",
             type=str,
-            help="Remote API host (ie: http://rapidpro.ilhasoft.mobi)",
+            help="Remote API host (ie: https://rapidpro.ilhasoft.mobi)",
         )
         parser.add_argument(
             "api_key",
             type=str,
             help="Remote API key (ie: abcdef1234567890abcdef1234567890)",
+        )
+        parser.add_argument(
+            "admin_user",
+            type=str,
+            help="Admin user name (for data not published by the API)",
+        )
+        parser.add_argument(
+            "admin_pass",
+            type=str,
+            help="Admin user password (for data not published by the API)",
         )
         parser.add_argument(
             "--flush",
@@ -124,7 +180,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         api_url = Command.clean_api_url(options.get("api_url", os.environ.get("REMOTE_API_URL", "")))
         api_key = Command.clean_api_key(options.get("api_key", os.environ.get("REMOTE_API_KEY", "")))
+        admin_user = options.get("admin_user", os.environ.get("REMOTE_ADMIN_USER", ""))
+        admin_pass = options.get("admin_pass", os.environ.get("REMOTE_ADMIN_PASS", ""))
+        
         self.client = TembaClient(api_url, api_key)
+        self.web = WebSession.create_web_session(api_url, admin_user, admin_pass)
 
         # Use the first admin user we can find in the destination database
         try:
@@ -253,6 +313,12 @@ class Command(BaseCommand):
         else:
             copy_result = self._copy_flow_runs()
             self.write_success("Copied %d flow runs." % copy_result)
+
+        if FlowRevision.objects.count():
+            self.write_notice("Skipping flow revisions.")
+        else:
+            copy_result = self._copy_flow_revisions()
+            self.write_success("Copied %d flow revisions." % copy_result)
 
     def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
@@ -1155,3 +1221,50 @@ class Command(BaseCommand):
             logger.info("Total flow runs bulk created: %d.", total)
             self.throttle()
         return total
+
+    def _copy_flow_revisions(self) -> int:
+        total_revs = 0
+
+        for flow in Flow.objects.all().order_by("-created_on"):
+            path = "/flow/revisions/{}/?version=13.1".format(flow.uuid)
+            response = self.web.get(path)
+            if response.status_code != 200:
+                logger.warning(
+                    "HTTP Status {} when retrieving revisions list for Flow {}: {}".format(
+                        response.status_code, flow.uuid, path
+                    ))
+                continue
+
+            results = response.json().get("results", [])
+            latest_rev = results[0]
+
+            original_id = latest_rev["id"]
+            rev_path = "/flow/revisions/{}/{}?version=13.1".format(flow.uuid, original_id)
+            rev_response = self.web.get(rev_path)
+
+            if rev_response.status_code != 200:
+                logger.warning(
+                    "HTTP Status {} when retrieving latest revision data for Flow {}: {}".format(
+                        response.status_code, flow.uuid, path
+                    ))
+                continue
+
+            definition = rev_response.json().get("definition", {})
+            metadata = rev_response.json().get("metadata", {})
+
+            revision = FlowRevision(
+                flow=flow,
+                created_by=self.default_user,
+                modified_by=self.default_user,
+                created_on=latest_rev["created_on"],
+                spec_version=latest_rev["version"],
+                revision=latest_rev["revision"],
+                definition=definition,
+            )
+            revision.save()
+            total_revs += 1
+
+            flow.metadata = metadata
+            flow.save()
+                
+        return total_revs
