@@ -82,7 +82,7 @@ class WebSession():
             "username": self.user, 
             "password": self.password,
         })
-        if result.statuc_code > 299 or result.status_code < 200:
+        if result.status_code > 299 or result.status_code < 200:
             logger.error("Web login failed!")
             exit()
         return result
