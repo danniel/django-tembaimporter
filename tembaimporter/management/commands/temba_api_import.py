@@ -1,45 +1,35 @@
-### THIS MODULE IS DEPRECATED 
-
 import logging
 import os
 import requests
 import time
-import uuid
+from typing import Union, List
 from collections.abc import Iterable
+from collections import namedtuple
 from functools import cache
 from typing import Any, Dict, TypeVar
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Model
-from temba.api.models import APIToken
 from temba.api.v2 import serializers
 from temba.archives.models import Archive
-from temba.campaigns.models import Campaign, CampaignEvent
-from temba.channels.models import Channel, ChannelCount, ChannelEvent
+from temba.channels.models import Channel, ChannelEvent
 from temba.contacts.models import (
     URN,
     Contact,
     ContactField,
     ContactGroup,
-    ContactGroupCount,
     ContactURN,
 )
 from temba.flows.models import (
     Flow,
     FlowCategoryCount,
-    FlowPathCount,
-    FlowRevision,
     FlowRun,
     FlowRunCount,
     FlowStart,
 )
-from temba.locations.models import AdminBoundary, BoundaryAlias
-from temba.msgs.models import Broadcast, BroadcastMsgCount, Label, Msg
-from temba.orgs.models import Org, User, UserSettings
-from temba.tickets.models import Ticketer, Topic
-from temba.tickets.types.internal import InternalType
+from temba.msgs.models import Broadcast, Label, Msg
+from temba.orgs.models import Org, User
 from temba_client.v2 import TembaClient
 from temba_client.v2 import types as client_types
 
@@ -49,6 +39,8 @@ ID = TypeVar("ID", bound=int)
 
 logger = logging.getLogger("temba_client")
 logger.setLevel(logging.INFO)
+
+CacheItem = namedtuple("CacheItem", "pk uuid old_uuid")
 
 
 class WebSession():
@@ -96,11 +88,62 @@ class WebSession():
         return ws
 
 
+def parse_broken_json(input: Union[str, None]) -> Union[str, dict, List[str], List[dict], None]:
+    """
+    Transforms inputs like:
+        [{name: UReporters, uuid: 7ed6f520-1412-4af3-b9b4-f4886be7a05a}, {name: some, name, uuid: 123123123}]
+    into Python objects like:
+        [
+            {"name": "Ureporters", "uuid": "7ed6f520-1412-4af3-b9b4-f4886be7a05a"},
+            {"name": "some, name", "uuid": "123123123"},
+        ]
+    """
+
+    def group_to_object(group_text: str) -> Union[str, dict]:
+        if not group_text.startswith("{") or not group_text.endswith("}"):
+            return group_text
+        parts = group_text[1:-1].rpartition(", ")
+        return {"name": parts[0].removeprefix("name: "), "uuid": parts[-1].removeprefix("uuid: ")}
+
+    if not input:
+        return input
+
+    if input.startswith("[") and input.endswith("]"):
+        # It looks like a list...
+        # Remove [ and ] from the string
+        t1 = input[1:-1]
+
+        if not t1.startswith("{") or not t1.endswith("}"):
+            # It looks like a a list of plain texts...
+            result = []
+            for item in t1.split(", "):
+                result.append(item)
+            return result
+
+        # It looks like a a list of objects...
+        # Split into { ... } group strings
+        t2 = [item if item[-1] == "}" else item + "}" for item in t1.split("}, ")]
+        # Convert group string into objects
+        result = []
+        for item in t2:
+            result.append(group_to_object(item))
+        return result
+
+    elif input.startswith("{") and input.endswith("}"):
+        # It looks like an object...
+        return group_to_object(input)
+        
+    else:
+        # It looks like plain text...
+        return input
+
+
 class Command(BaseCommand):
     help = (
-        "Import Temba data from a remote API. "
-        "If at least one row already exists for a specific model it will skip its import. "
-        "It keeps the existing (default) admin account and the anonymous user account."
+        "Import Rapidpro data from a Remote API. "
+        "But *first* you have to load in dashboard the exported data file (ie: u-report-romania.json), "
+        "then load from console the locations by running: "
+        "python3 manage.py import_geojson admin_level_0_simplified.json admin_level_1_simplified.json"
     )
 
     @staticmethod
@@ -145,6 +188,11 @@ class Command(BaseCommand):
         self.default_org = None
         self.default_user = None
         self.throttle_requests = False
+        
+        self.group_cache = {
+            # "group_name": CacheItem(),
+        }
+
         super().__init__(*args, **kwargs)
 
     def add_arguments(self, parser) -> None:
@@ -169,11 +217,6 @@ class Command(BaseCommand):
             help="Admin user password (for data not published by the API)",
         )
         parser.add_argument(
-            "--flush",
-            action="store_true",
-            help="Delete existing records before importing the remote data",
-        )
-        parser.add_argument(
             "--throttle",
             action="store_true",
             help="Slow down the API interrogations by taking some pauses",
@@ -190,46 +233,25 @@ class Command(BaseCommand):
 
         # Use the first admin user we can find in the destination database
         try:
-            self.default_user = User.objects.filter(is_superuser=True, is_active=True).all()[0]  # type: User
+            self.default_user = User.objects.exclude(username="AnonymousUser").order_by("pk").all()[0]  # type: User
         except IndexError:
-            self.write_error("You must first create one (and only one) admin user!")
-            self.write_notice("Sign up from the frontend, then set that account as superuser from console.")
+            self.write_error("You must first create an user from the frontend")
             return
+        else:
+            self.write_success("Default User = %s" % self.default_user)
 
         # Use the first organization we can find in the destination database
         self.default_org = Org.objects.filter(is_active=True, is_anon=False).all()[0]  # type: Org
+        self.write_success("Default Org = %s" % self.default_org)
 
         if options.get("throttle"):
             self.throttle_requests = True
 
-        if options.get("flush"):
-            self.write_notice("Deleting existing database records...")
-            self._flush_records()
-            self.write_success("Deleted existing database records.")
-
-        # Copy data from the remote API
+        # Copy the remaining data from the remote API
         # The order in which we copy the data is important because of object relationships
 
-        if AdminBoundary.objects.count():
-            self.write_notice("Skipping the administrative boundaries.")
-        else:
-            copy_result = self._copy_boundaries()
-            self.write_success("Copied %d administrative boundaries." % copy_result)
-
-        self._update_default_org()
-        self.write_success("Updated the default Org (Workspace).")
-
-        if ContactField.objects.count():
-            self.write_notice("Skipping contact fields.")
-        else:
-            copy_result = self._copy_fields()
-            self.write_success("Copied %d fields." % copy_result)
-
-        if ContactGroup.objects.count():
-            self.write_notice("Skipping contact groups.")
-        else:
-            copy_result = self._copy_groups()
-            self.write_success("Copied %d groups." % copy_result)
+        copy_result = self._copy_groups()
+        self.write_success("Copied %d new groups." % copy_result)
 
         if Contact.objects.count():
             self.write_notice("Skipping contacts.")
@@ -237,23 +259,17 @@ class Command(BaseCommand):
             copy_result = self._copy_contacts()
             self.write_success("Copied %d contacts." % copy_result)
 
-        if Archive.objects.count():
+        if Archive.objects.count():  # TODO: copy the actual files?
             self.write_notice("Skipping archives.")
         else:
             copy_result = self._copy_archives()
             self.write_success("Copied %d archives." % copy_result)
 
-        if Campaign.objects.count():
-            self.write_notice("Skipping campaigns.")
-        else:
-            copy_result = self._copy_campaigns()
-            self.write_success("Copied %d campaigns." % copy_result)
-
-        if Channel.objects.count():
+        if Channel.objects.count():  # TODO: check channel association by name
             self.write_notice("Skipping channels.")
         else:
             copy_result = self._copy_channels()
-            self.write_success("Copied %d channels." % copy_result)
+            self.write_success("Copied %d channels. You have to set the channel type from the shell!" % copy_result)
 
         if Label.objects.count():
             self.write_notice("Skipping labels.")
@@ -261,13 +277,13 @@ class Command(BaseCommand):
             copy_result = self._copy_labels()
             self.write_success("Copied %d labels." % copy_result)
 
-        if Broadcast.objects.count():
+        if Broadcast.objects.count():  # TODO: Reset primary key sequence
             self.write_notice("Skipping broadcasts.")
         else:
             copy_result = self._copy_broadcasts()
             self.write_success("Copied %d broadcasts." % copy_result)
 
-        if Msg.objects.count():
+        if Msg.objects.count():  # TODO: Reset primary key sequence
             self.write_notice("Skipping messages.")
         else:
             copy_result = self._copy_messages()
@@ -279,30 +295,8 @@ class Command(BaseCommand):
             copy_result = self._copy_channel_events()
             self.write_success("Copied %d channel events." % copy_result)
 
-        if Ticketer.objects.count():
-            self.write_notice("Skipping ticketers.")
-        else:
-            copy_result = self._copy_ticketers()
-            self.write_success("Copied %d ticketers." % copy_result)
-
-        if Topic.objects.count():
-            self.write_notice("Skipping topics.")
-        else:
-            copy_result = self._copy_topics()
-            self.write_success("Copied %d topics." % copy_result)
-
-        if User.objects.count() > 2:
-            # Skip if we have more than the default admin user and the AnonymousUser
-            self.write_notice("Skipping users.")
-        else:
-            copy_result = self._copy_users()
-            self.write_success("Copied %d users." % copy_result)
-
-        if Flow.objects.count():
-            self.write_notice("Skipping flows.")
-        else:
-            copy_result = self._copy_flows()
-            self.write_success("Copied %d flows." % copy_result)
+        copy_result = self._copy_users()
+        self.write_success("Copied or updated %d users." % copy_result)
 
         if FlowStart.objects.count():
             self.write_notice("Skipping flow starts.")
@@ -316,11 +310,12 @@ class Command(BaseCommand):
             copy_result = self._copy_flow_runs()
             self.write_success("Copied %d flow runs." % copy_result)
 
-        if FlowRevision.objects.count():
-            self.write_notice("Skipping flow revisions.")
-        else:
-            copy_result = self._copy_flow_revisions()
-            self.write_success("Copied %d flow revisions." % copy_result)
+        copy_result = self._copy_flow_category_counts()
+        self.write_success("Copied %d flow category counts." % copy_result)
+
+        copy_result = self._fix_flow_run_counts()
+        self.write_success("Fixed %d flow run counts." % copy_result)
+
 
     def write_success(self, message: str) -> None:
         self.stdout.write(self.style.SUCCESS(message))
@@ -331,94 +326,11 @@ class Command(BaseCommand):
     def write_notice(self, message: str) -> None:
         self.stdout.write(self.style.NOTICE(message))
 
-    def _flush_records(self) -> None:
-        """
-        Delete most of the existing database records before importing them
-        again from the remote host though the API
-        """
-        FlowPathCount.objects.all().delete()
-        FlowRun.objects.all().delete()
-        FlowRunCount.objects.all().delete()
-        FlowCategoryCount.objects.all().delete()
-        logger.info("Deleted flow runs and their counts.")
-
-        FlowStart.objects.all().delete()
-        logger.info("Deleted flow starts.")
-
-        FlowRevision.objects.all().delete()
-        Flow.objects.all().delete()
-        logger.info("Deleted flows and flow revisions.")
-
-        APIToken.objects.all().delete()
-        UserSettings.objects.all().delete()
-
-        # Delete users except the AnonymousUser and the default admin user
-        if self.default_user:
-            User.objects.exclude(
-                pk=self.default_user.pk
-            ).exclude(
-                username=settings.ANONYMOUS_USER_NAME
-            ).all().delete()
-        else:
-            User.objects.all().delete()
-        logger.info("Deleted users except the default admin and the anonymous user.")
-
-        # Delete administrative boundaries starting with the lowest administrative level
-        BoundaryAlias.objects.all().delete()
-        AdminBoundary.objects.filter(level=3).delete()
-        AdminBoundary.objects.filter(level=2).delete()
-        AdminBoundary.objects.filter(level=1).delete()
-        AdminBoundary.objects.all().delete()
-        logger.info("Deleted boundaries and their aliases.")
-
-        Topic.objects.all().delete()
-        logger.info("Deleted topics.")
-
-        Ticketer.objects.all().delete()
-        logger.info("Deleted ticketers.")
-
-        ChannelEvent.objects.all().delete()
-        logger.info("Deleted channel events.")
-
-        Msg.objects.all().delete()
-        logger.info("Deleted messages.")
-
-        BroadcastMsgCount.objects.all().delete()
-        Broadcast.objects.all().delete()
-        logger.info("Deleted broadcasts and their message counts.")
-
-        Label.objects.all().delete()
-        logger.info("Deleted labels.")
-
-        ChannelCount.objects.all().delete()
-        Channel.objects.all().delete()
-        logger.info("Deleted channels and their message counts.")
-
-        CampaignEvent.objects.all().delete()
-        Campaign.objects.all().delete()
-        logger.info("Deleted campaigns and their events.")
-
-        Archive.objects.all().delete()
-        logger.info("Deleted archives.")
-
-        ContactURN.objects.all().delete()
-        logger.info("Deleted contact URNs.")
-
-        Contact.objects.all().delete()
-        logger.info("Deleted contacts.")
-
-        ContactGroupCount.objects.all().delete()
-        ContactGroup.objects.all().delete()
-        logger.info("Deleted contact groups and their counts.")
-
-        ContactField.objects.all().delete()
-        logger.info("Deleted contact fields.")
-
     @property
     @cache
-    def _get_groups_uuid_pk(self) -> Dict[UUID, ID]:
-        """Retrieve all existing Group uuids and their corresponding database id"""
-        return {item[0]: item[1] for item in ContactGroup.objects.values_list("uuid", "pk")}
+    def _get_groups_name_pk(self) -> Dict[UUID, ID]:
+        """Retrieve all existing Group names and their corresponding database id"""
+        return {item[0]: item[1] for item in ContactGroup.objects.values_list("name", "pk")}
 
     @property
     @cache
@@ -434,9 +346,9 @@ class Command(BaseCommand):
 
     @property
     @cache
-    def _get_channels_uuid_pk(self) -> Dict[UUID, ID]:
-        """Retrieve all existing Channel uuids and their corresponding database id"""
-        return {item[0]: item[1] for item in Channel.objects.values_list("uuid", "pk")}
+    def _get_channels_name_pk(self) -> Dict[str, ID]:
+        """Retrieve all existing Channel names and their corresponding database id"""
+        return {item[0]: item[1] for item in Channel.objects.values_list("name", "pk")}
 
     @property
     @cache
@@ -446,9 +358,9 @@ class Command(BaseCommand):
 
     @property
     @cache
-    def _get_flows_uuid_pk(self) -> Dict[UUID, ID]:
-        """Retrieve all existing Flow uuids and their corresponding database id"""
-        return {item[0]: item[1] for item in Flow.objects.values_list("uuid", "pk")}
+    def _get_flows_name_pk(self) -> Dict[UUID, ID]:
+        """Retrieve all existing Flow names and their corresponding database id"""
+        return {item[0]: item[1] for item in Flow.objects.values_list("name", "pk")}
 
     @property
     @cache
@@ -456,32 +368,6 @@ class Command(BaseCommand):
         """Retrieve all existing Flow Start uuids and their corresponding database id"""
         return {item[0]: item[1] for item in FlowStart.objects.values_list("uuid", "pk")}
 
-    def _update_default_org(self):
-        org_data = self.client.get_org()
-
-        # Get the Org country by boundary name
-        try:
-            country = AdminBoundary.objects.filter(name=org_data.country)[0]
-        except IndexError:
-            # Get the Org country by boundary alias name
-            try:
-                country = BoundaryAlias.objects.filter(name=org_data.country)[0]
-            except IndexError:
-                self.default_org.country = None
-            else:
-                self.default_org.country = country
-        else:
-            self.default_org.country = country
-
-        self.default_org.uuid = org_data.uuid
-        self.default_org.name = org_data.name
-        self.default_org.languages = org_data.languages
-        self.default_org.primary_language = org_data.primary_language
-        self.default_org.timezone = org_data.timezone
-        self.default_org.date_style = org_data.date_style
-        self.default_org.credits = org_data.credits
-        self.default_org.is_anon = org_data.anon
-        self.default_org.save()
 
     def _copy_archives(self) -> int:
         total = 0
@@ -516,58 +402,27 @@ class Command(BaseCommand):
             self.throttle()
         return total
 
-    def _copy_fields(self) -> int:
-        total = 0
-        inverse_choice = Command.inverse_choices(
-            (
-                (
-                    "value_type",
-                    serializers.ContactFieldReadSerializer.VALUE_TYPES.items(),
-                ),
-            )
-        )
-
-        for read_batch in self.client.get_fields().iterfetches(retry_on_rate_exceed=True):
-            creation_queue: list[ContactField] = []
-            row: client_types.Field
-            for row in read_batch:
-                item_data = {
-                    **self.default_fields,
-                    "key": row.key,
-                    "name": row.label,
-                    "value_type": inverse_choice["value_type"][row.value_type],
-                    "show_in_table": row.pinned,
-                }
-                item = ContactField(**item_data)
-                creation_queue.append(item)
-            total += len(ContactField.objects.bulk_create(creation_queue))
-            logger.info("Total contact fields bulk created: %d.", total)
-            self.throttle()
-        return total
-
     def _copy_groups(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices((("status", serializers.ContactGroupReadSerializer.STATUSES.items()),))
-        system_group_names = ("active", "blocked", "stopped", "archived", "open tickets", )
 
-        ContactGroup.create_system_groups(self.default_org)
-        logger.info("Created the system groups")
+        existing_names = list(ContactGroup.objects.all().values_list("name", flat=True))
 
         for read_batch in self.client.get_groups().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[ContactGroup] = []
             row: client_types.Group
             for row in read_batch:
-                if row.name and row.name.lower() in system_group_names:
+                self.group_cache[row.name] = CacheItem(None, None, row.uuid)
+                if row.name and row.name in existing_names:
                     continue
+
                 item_data = {
                     **self.default_fields,
-                    "uuid": row.uuid,
                     "name": row.name,
                     "query": row.query,
                     "status": inverse_choice["status"][row.status],
                     "is_system": False,
-                    # TODO:
-                    # The API doesn't give us the group type so we assume they're all 'Manual'
+                    # TODO: The API doesn't give us the group type so we assume they're all 'Manual'
                     "group_type": ContactGroup.TYPE_MANUAL,
                 }
                 item = ContactGroup(**item_data)
@@ -576,19 +431,24 @@ class Command(BaseCommand):
             total += len(ContactGroup.objects.bulk_create(creation_queue))
             logger.info("Total groups bulk created: %d.", total)
             self.throttle()
+
+        for group in ContactGroup.objects.all():
+            if group.name in self.group_cache:
+                old_uuid = self.group_cache[group.name].old_uuid
+            else:
+                old_uuid = None
+            self.group_cache[group.name] = CacheItem(group.pk, group.uuid, old_uuid)
         return total
 
     def _copy_contacts(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices((("status", serializers.ContactReadSerializer.STATUSES.items()),))
 
-        groups_uuid_pk = self._get_groups_uuid_pk
-
         fields_key_field = { 
             field.key : field for field in ContactField.objects.all()}
 
         for read_batch in self.client.get_contacts().iterfetches(retry_on_rate_exceed=True):
-            contact_group_uuids: dict[UUID, list[UUID]] = {}
+            contact_uuid_group_names: dict[UUID, list[str]] = {}  # dict[ContactUUID, list[GroupName]]
             contact_urns: dict[UUID, list[str]] = {}
             creation_queue: list[Contact] = []
             row: client_types.Contact
@@ -633,9 +493,9 @@ class Command(BaseCommand):
                 contact_urns[row.uuid] = row.urns
 
                 # current contact's group memberships
-                contact_group_uuids[row.uuid] = []
+                contact_uuid_group_names[row.uuid] = []
                 for g in row.groups:
-                    contact_group_uuids[row.uuid].append(g.uuid)
+                    contact_uuid_group_names[row.uuid].append(g.name)
 
             contacts_created = Contact.objects.bulk_create(creation_queue)
             total += len(contacts_created)
@@ -644,8 +504,8 @@ class Command(BaseCommand):
             group_through_queue: list[Model] = []  # the m2m "through" objects
             contact_urns_queue: list[ContactURN] = []  # the ContactURN objects
             for contact in contacts_created:
-                for guuid in contact_group_uuids[contact.uuid]:
-                    gid = groups_uuid_pk.get(guuid, None)
+                for group_name in contact_uuid_group_names[contact.uuid]:
+                    gid = self.group_cache[group_name].pk
                     # Use the Django's "through" table and bulk add the contact_id + contactgroup_id pairs
                     group_through_queue.append(Contact.groups.through(contact_id=contact.id, contactgroup_id=gid))
                 for urn in contact_urns[contact.uuid]:
@@ -663,30 +523,6 @@ class Command(BaseCommand):
             Contact.groups.through.objects.bulk_create(group_through_queue)
             ContactURN.objects.bulk_create(contact_urns_queue)
             logger.info("Added groups and URNs to the created contacts.")
-            self.throttle()
-        return total
-
-    def _copy_campaigns(self) -> int:
-        total = 0
-        groups_uuid_pk = self._get_groups_uuid_pk
-        for read_batch in self.client.get_campaigns().iterfetches(retry_on_rate_exceed=True):
-            creation_queue: list[Campaign] = []
-            row: client_types.Campaign
-            for row in read_batch:
-                item_data = {
-                    "org": self.default_org,
-                    "created_by": self.default_user,
-                    "modified_by": self.default_user,
-                    "uuid": row.uuid,
-                    "name": row.name,
-                    "is_archived": row.archived,
-                    "created_on": row.created_on,
-                    "group_id": groups_uuid_pk[row.group.uuid] if row.group else None,
-                }
-                item = Campaign(**item_data)
-                creation_queue.append(item)
-            total += len(Campaign.objects.bulk_create(creation_queue))
-            logger.info("Total campaigns bulk created: %d.", total)
             self.throttle()
         return total
 
@@ -724,7 +560,7 @@ class Command(BaseCommand):
             (("event_type", serializers.ChannelEventReadSerializer.TYPES.items()),)
         )
 
-        channels_uuid_pk = self._get_channels_uuid_pk
+        channels_name_pk = self._get_channels_name_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk
 
         for read_batch in self.client.get_channel_events().iterfetches(retry_on_rate_exceed=True):
@@ -732,7 +568,7 @@ class Command(BaseCommand):
             row: client_types.ChannelEvent
             for row in read_batch:
                 # Skip channel events for channels which don't seem to exist anymore
-                if row.channel.uuid not in channels_uuid_pk:
+                if row.channel.name not in channels_name_pk:
                     logger.warning(
                         "Skipping channel events for channel %s %s",
                         row.channel.uuid,
@@ -744,7 +580,7 @@ class Command(BaseCommand):
                     "id": row.id,
                     "event_type": inverse_choice["event_type"][row.type],
                     "contact_id": contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
-                    "channel_id": channels_uuid_pk[row.channel.uuid] if row.channel else None,
+                    "channel_id": channels_name_pk[row.channel.name] if row.channel else None,
                     "extra": row.extra,
                     "occurred_on": row.occurred_on,
                     "created_on": row.created_on,
@@ -781,12 +617,11 @@ class Command(BaseCommand):
         inverse_choice = Command.inverse_choices((("status", serializers.BroadcastReadSerializer.STATUSES.items()),))
 
         # This could use a lot of memory
-        groups_uuid_pk = self._get_groups_uuid_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk
         urns_pk = self._get_urns_pk
 
         for read_batch in self.client.get_broadcasts().iterfetches(retry_on_rate_exceed=True):
-            contact_group_uuids: dict[ID, list[UUID]] = {}
+            broadcast_id_group_names: dict[ID, list[str]] = {}  # dict[BroadcastID, list[GroupName]]
             contact_urns: dict[ID, list[str]] = {}
             contact_uuids: dict[ID, list[UUID]] = {}
             creation_queue: list[Broadcast] = []
@@ -805,9 +640,9 @@ class Command(BaseCommand):
                 creation_queue.append(item)
 
                 contact_urns[row.id] = row.urns
-                contact_group_uuids[row.id] = []
+                broadcast_id_group_names[row.id] = []
                 for g in row.groups:
-                    contact_group_uuids[row.id].append(g.uuid)
+                    broadcast_id_group_names[row.id].append(g.name)
                 contact_uuids[row.id] = []
                 for c in row.contacts:
                     contact_uuids[row.id].append(c.uuid)
@@ -822,8 +657,8 @@ class Command(BaseCommand):
             urn_through_queue: list[Model] = []
 
             for broadcast in broadcasts_created:
-                for guuid in contact_group_uuids[broadcast.id]:
-                    gid = groups_uuid_pk.get(guuid, None)
+                for gname in broadcast_id_group_names[broadcast.id]:
+                    gid = self.group_cache[gname].pk
                     group_through_queue.append(Broadcast.groups.through(broadcast_id=broadcast.id, contactgroup_id=gid))
                 for cuuid in contact_uuids[broadcast.id]:
                     cid = contacts_uuid_pk.get(cuuid, None)
@@ -842,7 +677,7 @@ class Command(BaseCommand):
     def _copy_messages(self) -> int:
         total = 0
         contacts_uuid_pk = self._get_contacts_uuid_pk
-        channels_uuid_pk = self._get_channels_uuid_pk
+        channels_name_pk = self._get_channels_name_pk
         labels_uuid_pk = self._get_labels_uuid_pk
         urns_pk = self._get_urns_pk
 
@@ -871,7 +706,7 @@ class Command(BaseCommand):
                     "visibility": inverse_choice["visibility"][row.visibility],
                     "contact_id": contacts_uuid_pk.get(row.contact.uuid, None) if row.contact else None,
                     "contact_urn_id": urns_pk.get(row.urn, None) if row.urn else None,
-                    "channel_id": channels_uuid_pk.get(row.channel.uuid, None) if row.channel else None,
+                    "channel_id": channels_name_pk.get(row.channel.name, None) if row.channel else None,
                     "attachments": [],
                     "created_on": row.created_on,
                     "sent_on": row.sent_on,
@@ -906,53 +741,6 @@ class Command(BaseCommand):
             self.throttle()
         return total
 
-    def _copy_ticketers(self) -> int:
-        total = 0
-        for read_batch in self.client.get_ticketers().iterfetches(retry_on_rate_exceed=True):
-            creation_queue: list[Ticketer] = []
-            row: client_types.Ticketer
-            for row in read_batch:
-                item_data = {
-                    "org": self.default_org,
-                    "created_by": self.default_user,
-                    "modified_by": self.default_user,
-                    "uuid": row.uuid,
-                    "name": row.name,
-                    "created_on": row.created_on,
-                    "ticketer_type": row.type,
-                    "config": {},
-                    "is_system": True if row.type == InternalType.slug else False,
-                }
-                item = Ticketer(**item_data)
-                creation_queue.append(item)
-            total += len(Ticketer.objects.bulk_create(creation_queue))
-            logger.info("Total ticketers bulk created: %d.", total)
-            self.throttle()
-        return total
-
-    def _copy_topics(self) -> int:
-        total = 0
-        for read_batch in self.client.get_topics().iterfetches(retry_on_rate_exceed=True):
-            creation_queue: list[Topic] = []
-            row: client_types.Topic
-            for row in read_batch:
-                item_data = {
-                    "org": self.default_org,
-                    "created_by": self.default_user,
-                    "modified_by": self.default_user,
-                    "uuid": row.uuid,
-                    "name": row.name,
-                    "created_on": row.created_on,
-                    "is_system": True if row.name == Topic.DEFAULT_TOPIC else False,
-                    "is_default": True if row.name == Topic.DEFAULT_TOPIC else False,
-                }
-                item = Topic(**item_data)
-                creation_queue.append(item)
-            total += len(Topic.objects.bulk_create(creation_queue))
-            logger.info("Total topics bulk created: %d.", total)
-            self.throttle()
-        return total
-
     def _copy_users(self) -> int:
         total = 0
         inverse_choice = Command.inverse_choices((("role", serializers.UserReadSerializer.ROLES.items()),))
@@ -961,162 +749,49 @@ class Command(BaseCommand):
             row: client_types.User
             for row in read_batch:
                 item_data = {
-                    "username": row.email,
                     "email": row.email,
                     "first_name": row.first_name,
                     "last_name": row.last_name,
                     "date_joined": row.created_on,
                 }
                 org_role = inverse_choice["role"][row.role]
-                item = User(**item_data)
+                item, created = User.objects.get_or_create(username=row.email, defaults=item_data)
                 # Save users one by one instead of doing it in batches
                 item.save()
                 self.default_org.add_user(item, org_role)
                 total += 1
-            logger.info("Total users created: %d.", total)
-            self.throttle()
-        return total
-
-    def _copy_boundaries(self) -> int:
-        total = 0
-        osm_id_to_pk: dict[int, ID] = {}  # Map osm_id fields to primary keys
-        osm_id_to_path: dict[int, str] = {}  # Map osm_id fields to paths
-        for level in range(0, 4):
-            for read_batch in self.client.get_boundaries().iterfetches(retry_on_rate_exceed=True):
-                creation_queue: list[AdminBoundary] = []
-                boundary_aliases: dict[int, list[str]] = {}  # Map osm_id fields to a list of alias names
-                row: client_types.Boundary
-                for row in read_batch:
-                    # ignore boundaries on different levels than the current one
-                    if row.level != level:
-                        continue
-
-                    if row.parent:
-                        parent_path = osm_id_to_path.get(row.parent.osm_id, "")
-                        item_path = parent_path + AdminBoundary.PADDED_PATH_SEPARATOR + row.name
-                    else:
-                        item_path = row.name
-                    osm_id_to_path[row.osm_id] = item_path
-
-                    item_data = {
-                        "osm_id": row.osm_id,
-                        "name": row.name,
-                        "parent_id": osm_id_to_pk.get(row.parent.osm_id, None) if row.parent else None,
-                        "path": item_path,
-                        # 'simplified_geometry': row.geometry,  # We do not use the geometry
-                        "level": row.level,
-                        "lft": 0,
-                        "rght": 0,
-                        "tree_id": 0,
-                    }
-                    item = AdminBoundary(**item_data)
-                    creation_queue.append(item)
-                    boundary_aliases[row.osm_id] = []
-                    boundary_aliases[row.osm_id].extend(row.aliases)
-
-                with transaction.atomic():
-                    # with AdminBoundary.objects.disable_mptt_updates():
-                    boundaries_created = AdminBoundary.objects.bulk_create(creation_queue)
-                    total += len(boundaries_created)
-                    # AdminBoundary.objects.rebuild()  # TODO: Patch a TreeManager and rebuild the tree
-                logger.info("Total boundaries bulk created: %d.", total)
-
-                aliases_creation_queue: list[BoundaryAlias] = []
-                for boundary in boundaries_created:
-                    osm_id_to_pk[boundary.osm_id] = boundary.id
-                    alias_names = boundary_aliases.get(boundary.osm_id, [])
-                    for alias_name in alias_names:
-                        aliases_creation_queue.append(
-                            BoundaryAlias(
-                                name=alias_name,
-                                boundary_id=boundary.id,
-                                org=self.default_org,
-                                created_by=self.default_user,
-                                modified_by=self.default_user,
-                            )
-                        )
-                BoundaryAlias.objects.bulk_create(aliases_creation_queue)
-                logger.info("Added aliases to created boundaries.")
-                self.throttle()
-        return total
-
-    def _copy_flows(self) -> int:
-        inverse_choice = Command.inverse_choices((("type", serializers.FlowReadSerializer.FLOW_TYPES.items()),))
-        labels_uuid_pk = self._get_labels_uuid_pk
-        total = 0
-
-        for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
-            creation_queue: list[Flow] = []
-            label_uuids: dict[UUID, list[UUID]] = {}
-            row: client_types.Flow
-            for row in read_batch:
-                item_data = {
-                    "org": self.default_org,
-                    "created_by": self.default_user,
-                    "saved_by": self.default_user,
-                    "modified_by": self.default_user,
-                    "uuid": row.uuid,
-                    "name": row.name,
-                    "created_on": row.created_on,
-                    "modified_on": row.modified_on,
-                    "is_archived": row.archived,
-                    "expires_after_minutes": row.expires,
-                    "flow_type": inverse_choice["type"][row.type],
-                    "metadata": {
-                        Flow.METADATA_RESULTS: [
-                            {
-                                "key": result.key,
-                                "name": result.name,
-                                "categories": result.categories,
-                                "node_uuids": result.node_uuids,
-                            }
-                            for result in row.results
-                        ],
-                        # Flow.METADATA_PARENT_REFS: row.parent_refs, # TODO: parent_ref but they all seem blank for our temba install
-                    },
-                }
-                item = Flow(**item_data)
-                creation_queue.append(item)
-
-                label_uuids[row.uuid] = []
-                for label in row.labels:
-                    label_uuids[row.uuid].append(label.uuid)
-
-            flows_created = Flow.objects.bulk_create(creation_queue)
-            total += len(flows_created)
-            logger.info("Total flows bulk created: %d.", total)
-
-            label_through_queue: list[Model] = []
-            for flow in flows_created:
-                for luuid in label_uuids[flow.uuid]:
-                    lid = labels_uuid_pk.get(luuid, None)
-                    label_through_queue.append(Flow.labels.through(flow_id=flow.id, label_id=lid))
-            Flow.labels.through.objects.bulk_create(label_through_queue)
-            logger.info("Added labels to created flows.")
-
+            logger.info("Total users created or updated: %d.", total)
             self.throttle()
         return total
 
     def _copy_flow_starts(self) -> int:
         inverse_choice = Command.inverse_choices((("status", serializers.FlowStartReadSerializer.STATUSES.items()),))
-        flows_uuid_pk = self._get_flows_uuid_pk
-        groups_uuid_pk = self._get_groups_uuid_pk
+        flows_name_pk = self._get_flows_name_pk
+        groups_name_pk = self._get_groups_name_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk
 
         total = 0
         for read_batch in self.client.get_flow_starts().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[FlowStart] = []
-            group_uuids: dict[UUID, list[UUID]] = {}
+            group_names: dict[UUID, list[str]] = {}
             contact_uuids: dict[UUID, list[UUID]] = {}
             row: client_types.FlowStart
             for row in read_batch:
+                if row.flow.name not in flows_name_pk:
+                    logger.warning(
+                        'Skipping Flow Start "%s" because Flow "%s" does not exist',
+                        row.uuid,
+                        row.flow.name,
+                    )
+                    continue
+
                 item_data = {
                     "org": self.default_org,
                     "created_by": self.default_user,
                     "uuid": row.uuid,
                     "created_on": row.created_on,
                     "modified_on": row.modified_on,
-                    "flow_id": flows_uuid_pk.get(row.flow.uuid, None),
+                    "flow_id": flows_name_pk.get(row.flow.name, None),
                     "status": inverse_choice["status"][row.status],
                     "restart_participants": row.restart_participants,
                     "include_active": not row.exclude_active,
@@ -1127,9 +802,9 @@ class Command(BaseCommand):
                 item = FlowStart(**item_data)
                 creation_queue.append(item)
 
-                group_uuids[row.uuid] = []
+                group_names[row.uuid] = []
                 for group in row.groups:
-                    group_uuids[row.uuid].append(group.uuid)
+                    group_names[row.uuid].append(group.name)
 
                 contact_uuids[row.uuid] = []
                 for contact in row.contacts:
@@ -1142,8 +817,8 @@ class Command(BaseCommand):
             group_through_queue: list[Model] = []
             contact_through_queue: list[Model] = []
             for flow_start in flow_starts_created:
-                for guuid in group_uuids[flow_start.uuid]:
-                    gid = groups_uuid_pk.get(guuid, None)
+                for gname in group_names[flow_start.uuid]:
+                    gid = groups_name_pk.get(gname, None)
                     group_through_queue.append(
                         FlowStart.groups.through(flowstart_id=flow_start.id, contactgroup_id=gid)
                     )
@@ -1154,7 +829,7 @@ class Command(BaseCommand):
                             FlowStart.contacts.through(flowstart_id=flow_start.id, contact_id=cid)
                         )
                     else:
-                        logger.warning("FlowStart cannot find contact with UUID %s", cuuid)
+                        logger.warning('FlowStart cannot find contact with UUID "%s"', cuuid)
             FlowStart.contacts.through.objects.bulk_create(contact_through_queue)
             logger.info("Added contacts to created flow starts.")
             FlowStart.groups.through.objects.bulk_create(group_through_queue)
@@ -1165,53 +840,109 @@ class Command(BaseCommand):
 
     def _copy_flow_runs(self) -> int:
         inverse_choice = Command.inverse_choices((("exit_type", serializers.FlowRunReadSerializer.EXIT_TYPES.items()),))
-        flows_uuid_pk = self._get_flows_uuid_pk
+        flows_name_pk = self._get_flows_name_pk
         flowstarts_uuid_pk = self._get_flowstarts_uuid_pk
         contacts_uuid_pk = self._get_contacts_uuid_pk
         total = 0
+        
+        def translate_group_uuids(data):
+            """
+            Data must be either a list of dicts or a dict:
+                [{"name": "asdasd", "uuid": "12345"}]
+            """
+            if not data:
+                return data
+            
+            if type(data) == list:
+                for i, item in enumerate(data):
+                    if "uuid" in data[i]:
+                        data[i]["uuid"] = self.group_cache[item["name"]].uuid
+            elif type(data) == list:
+                if "uuid" in data[i]:
+                    data[i]["uuid"] = self.group_cache[item["name"]].uuid
+            return 
+            
+        flow_results_key_uuid = {}  # map ResultKey to UUID
+        flow_results_old_uuid = {}  # map OLD-UUID to UUID
+        for flow in Flow.objects.all():
+            for r in flow.metadata["results"]:
+                flow_results_key_uuid[r["key"]] = r["node_uuids"][0]
 
         for read_batch in self.client.get_runs().iterfetches(retry_on_rate_exceed=True):
             creation_queue: list[FlowRun] = []
             row: client_types.Run
             for row in read_batch:
                 # Skip flow runs which do not belong to any flow
-                if not row.flow or not flows_uuid_pk.get(row.flow.uuid, None):
-                    logger.warning("Skipping flow run %s because it has no Flow", row.uuid)
+                if not row.flow or not flows_name_pk.get(row.flow.name, None):
+                    logger.warning(
+                        'Skipping Flow Run "%s" because its Flow "%s" does not exist', 
+                        row.uuid, 
+                        row.flow.name
+                    )
                     continue
 
-                # Build the FlowRun path
+                flow = Flow.objects.get(pk=flows_name_pk.get(row.flow.name, None))
+                flow_deps_category = {}
+                for d in flow.metadata["dependencies"]:
+                    flow_deps_category[d["name"]] = d
+
+                item_results = {}
+                for k, r in row.values.items():
+                    parsed_input = parse_broken_json(r.input)
+                    parsed_value = parse_broken_json(r.value)
+
+                    # Fix the group UUIDs if needed
+                    dependency = flow_deps_category.get(r.category, None)
+                    if dependency and dependency.get("type", "") == "group":
+                        parsed_input = translate_group_uuids(parsed_input)
+                        parsed_value = translate_group_uuids(parsed_value)
+
+                    node_uuid = flow_results_key_uuid.get(k, None)
+                    if not node_uuid:
+                        node_uuid = r.node
+                        logger.warning('Cannot translate result node uuid for key %s', k)
+
+                    flow_results_old_uuid[r.node] = node_uuid
+
+                    item_results[k] = {
+                        "node_uuid": node_uuid,
+                        "name": r.name,
+                        "created_on": r.time,
+                        "input": parsed_input,
+                        "value": parsed_value,
+                        "category": r.category,
+                    }
+
+                # TODO: This only maps nodes which are set in the current Flow's Results. It skips unknown results.
                 item_path = []
-                path_len = len(row.path)
-                for i, segment in enumerate(row.path):
-                    item_path.append(
-                        {
-                            "uuid": str(uuid.uuid4()),
-                            "node_uuid": segment.node,
-                            "arrived_on": segment.time,
-                            "exit_uuid": None if i == path_len - 1 else str(uuid.uuid4()),
-                        }
-                    )
+                for i, step in enumerate(row.path):
+                    step_node_uuid = flow_results_old_uuid.get(step.node)
+                    if step_node_uuid:
+                        item_path.append({
+                            "node_uuid": step_node_uuid,
+                            "arrived_on": step.time,
+                            "exit_uuid": None
+                        })
+                
+                # Set the exit_uuid to the next node uuid  
+                # TODO: not sure if this is ok
+                if len(item_path) > 1:
+                    for i, step in enumerate(item_path):
+                        if i == 0:
+                            continue
+                        item_path[i-1]["exit_uuid"] = item_path[i]["node_uuid"]
+
                 item_data = {
                     "org": self.default_org,
                     "uuid": row.uuid,
                     "created_on": row.created_on,
                     "modified_on": row.modified_on,
-                    "flow_id": None if not row.flow else flows_uuid_pk.get(row.flow.uuid, None),
+                    "flow_id": None if not row.flow else flows_name_pk.get(row.flow.name, None),
                     "contact_id": None if not row.contact else contacts_uuid_pk.get(row.contact.uuid, None),
                     "start_id": None if not row.start else flowstarts_uuid_pk.get(row.start.uuid, None),
                     "responded": row.responded,
                     "path": item_path,
-                    "results": {
-                        k: {
-                            "node_uuid": r.node,
-                            "name": r.name,
-                            "created_on": r.time,
-                            "input": r.input,
-                            "value": r.value,
-                            "category": r.category,
-                        }
-                        for k, r in row.values.items()
-                    },
+                    "results": item_results,
                     "exited_on": row.exited_on,
                     "status": "" if not row.exit_type else inverse_choice["exit_type"][row.exit_type],
                 }
@@ -1224,49 +955,83 @@ class Command(BaseCommand):
             self.throttle()
         return total
 
-    def _copy_flow_revisions(self) -> int:
-        total_revs = 0
+    def _copy_flow_category_counts(self) -> int:
+        total = 0
+        
+        FlowCategoryCount.objects.all().delete()
+        logger.info("Deleted flow category counts")
 
-        for flow in Flow.objects.all().order_by("-created_on"):
-            path = "/flow/revisions/{}/?version=13.1".format(flow.uuid)
-            response = self.web.get(path)
-            if response.status_code != 200:
-                logger.warning(
-                    "HTTP Status {} when retrieving revisions list for Flow {}: {}".format(
-                        response.status_code, flow.uuid, path
-                    ))
-                continue
+        flow_results_key_uuid = {}
+        for flow in Flow.objects.all():
+            for r in flow.metadata["results"]:
+                flow_results_key_uuid[r["key"]] = r["node_uuids"][0]
 
-            results = response.json().get("results", [])
-            latest_rev = results[0]
-
-            original_id = latest_rev["id"]
-            rev_path = "/flow/revisions/{}/{}?version=13.1".format(flow.uuid, original_id)
-            rev_response = self.web.get(rev_path)
-
-            if rev_response.status_code != 200:
-                logger.warning(
-                    "HTTP Status {} when retrieving latest revision data for Flow {}: {}".format(
-                        response.status_code, flow.uuid, path
-                    ))
-                continue
-
-            definition = rev_response.json().get("definition", {})
-            metadata = rev_response.json().get("metadata", {})
-
-            revision = FlowRevision(
-                flow=flow,
-                created_by=self.default_user,
-                modified_by=self.default_user,
-                created_on=latest_rev["created_on"],
-                spec_version=latest_rev["version"],
-                revision=latest_rev["revision"],
-                definition=definition,
-            )
-            revision.save()
-            total_revs += 1
-
-            flow.metadata = metadata
-            flow.save()
+        for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
+            remote_data: client_types.Flow
+            for remote_data in read_batch:
+                # "uuid": remote_data.uuid
+                # "name": remote_data.name
+                creation_queue: list[FlowCategoryCount] = []
+                web_response = self.web.get("/flow/category_counts/{}/".format(remote_data.uuid))
                 
-        return total_revs
+                try:
+                    flow = Flow.objects.get(name=remote_data.name)
+                except Flow.DoesNotExist:
+                    logger.warning("Cannot find Flow: %s", remote_data.name)
+                    continue
+
+                if web_response.status_code != 200:
+                    logger.warning(
+                        "HTTP Status %s when retrieving category counts for Flow %s",
+                            web_response.status_code, 
+                            flow.uuid
+                        )
+                    continue
+
+                counts = web_response.json().get("counts", {})
+                for count in counts:
+                    for cat in count["categories"]:
+                        item = FlowCategoryCount(
+                            flow=flow,
+                            result_key=count["key"],
+                            result_name=count["name"],
+                            category_name=cat["name"],
+                            count=cat["count"],
+                            node_uuid=flow_results_key_uuid[count["key"]],
+                        )
+                        creation_queue.append(item)
+
+                flow_counts_created = FlowCategoryCount.objects.bulk_create(creation_queue)
+                total += len(flow_counts_created)
+                logger.info("Total flow category counts bulk created: %d.", total)
+                self.throttle()
+                
+        return total
+
+    def _fix_flow_run_counts(self) -> int:
+        total = 0
+        
+        FlowRunCount.objects.all().delete()
+        logger.info("Deleted flow run counts")
+
+        for read_batch in self.client.get_flows().iterfetches(retry_on_rate_exceed=True):
+            remote_data: client_types.Flow
+            creation_queue: list[FlowRunCount] = []
+            
+            for remote_data in read_batch:
+                try:
+                    flow = Flow.objects.get(name=remote_data.name)
+                except Flow.DoesNotExist:
+                    logger.warning("Cannot find Flow: %s", remote_data.name)
+                    continue
+                creation_queue.append(FlowRunCount(flow=flow, count=remote_data.runs.completed, exit_type="C"))
+                creation_queue.append(FlowRunCount(flow=flow, count=remote_data.runs.interrupted, exit_type="I"))
+                creation_queue.append(FlowRunCount(flow=flow, count=remote_data.runs.expired, exit_type="E"))
+                # creation_queue.append(FlowRunCount(flow=flow, count=remote_data.runs.failed???, exit_type="F"))
+
+            flow_counts_created = FlowRunCount.objects.bulk_create(creation_queue)
+            total += len(flow_counts_created)
+            logger.info("Total flow run counts bulk created: %d.", total)
+        
+        self.throttle()
+        return total
