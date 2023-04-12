@@ -253,11 +253,11 @@ class Command(BaseCommand):
         copy_result = self._copy_groups()
         self.write_success("Copied %d new groups." % copy_result)
 
-        if Contact.objects.count():
-            self.write_notice("Skipping contacts.")
-        else:
-            copy_result = self._copy_contacts()
-            self.write_success("Copied %d contacts." % copy_result)
+        # if Contact.objects.count():
+        #     self.write_notice("Skipping contacts.")
+        # else:
+        copy_result = self._copy_contacts()
+        self.write_success("Copied %d contacts." % copy_result)
 
         if Archive.objects.count():  # TODO: copy the actual files?
             self.write_notice("Skipping archives.")
@@ -265,11 +265,11 @@ class Command(BaseCommand):
             copy_result = self._copy_archives()
             self.write_success("Copied %d archives." % copy_result)
 
-        if Channel.objects.count():  # TODO: check channel association by name
-            self.write_notice("Skipping channels.")
-        else:
-            copy_result = self._copy_channels()
-            self.write_success("Copied %d channels. You have to set the channel type from the shell!" % copy_result)
+        # if Channel.objects.count():  # TODO: check channel association by name
+        #     self.write_notice("Skipping channels.")
+        # else:
+        copy_result = self._copy_channels()
+        self.write_success("Copied %d channels. You have to set the channel type from the shell!" % copy_result)
 
         if Label.objects.count():
             self.write_notice("Skipping labels.")
@@ -283,32 +283,32 @@ class Command(BaseCommand):
             copy_result = self._copy_broadcasts()
             self.write_success("Copied %d broadcasts." % copy_result)
 
-        if Msg.objects.count():  # TODO: Reset primary key sequence
-            self.write_notice("Skipping messages.")
-        else:
-            copy_result = self._copy_messages()
-            self.write_success("Copied %d messages." % copy_result)
+        # if Msg.objects.count():  # TODO: Reset primary key sequence
+        #     self.write_notice("Skipping messages.")
+        # else:
+        copy_result = self._copy_messages()
+        self.write_success("Copied %d messages." % copy_result)
 
-        if ChannelEvent.objects.count():
-            self.write_notice("Skipping channel events.")
-        else:
-            copy_result = self._copy_channel_events()
-            self.write_success("Copied %d channel events." % copy_result)
+        # if ChannelEvent.objects.count():
+        #     self.write_notice("Skipping channel events.")
+        # else:
+        copy_result = self._copy_channel_events()
+        self.write_success("Copied %d channel events." % copy_result)
 
         copy_result = self._copy_users()
         self.write_success("Copied or updated %d users." % copy_result)
 
-        if FlowStart.objects.count():
-            self.write_notice("Skipping flow starts.")
-        else:
-            copy_result = self._copy_flow_starts()
-            self.write_success("Copied %d flow starts." % copy_result)
+        # if FlowStart.objects.count():
+        #     self.write_notice("Skipping flow starts.")
+        # else:
+        copy_result = self._copy_flow_starts()
+        self.write_success("Copied %d flow starts." % copy_result)
 
-        if FlowRun.objects.count():
-            self.write_notice("Skipping flow runs.")
-        else:
-            copy_result = self._copy_flow_runs()
-            self.write_success("Copied %d flow runs." % copy_result)
+        # if FlowRun.objects.count():
+        #     self.write_notice("Skipping flow runs.")
+        # else:
+        copy_result = self._copy_flow_runs()
+        self.write_success("Copied %d flow runs." % copy_result)
 
         copy_result = self._copy_flow_category_counts()
         self.write_success("Copied %d flow category counts." % copy_result)
