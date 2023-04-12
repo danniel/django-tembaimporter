@@ -259,11 +259,11 @@ class Command(BaseCommand):
         copy_result = self._copy_contacts()
         self.write_success("Copied %d contacts." % copy_result)
 
-        if Archive.objects.count():  # TODO: copy the actual files?
-            self.write_notice("Skipping archives.")
-        else:
-            copy_result = self._copy_archives()
-            self.write_success("Copied %d archives." % copy_result)
+        # if Archive.objects.count():  # TODO: copy the actual files?
+        #     self.write_notice("Skipping archives.")
+        # else:
+        copy_result = self._copy_archives()
+        self.write_success("Copied %d archives." % copy_result)
 
         # if Channel.objects.count():  # TODO: check channel association by name
         #     self.write_notice("Skipping channels.")
@@ -271,17 +271,17 @@ class Command(BaseCommand):
         copy_result = self._copy_channels()
         self.write_success("Copied %d channels. You have to set the channel type from the shell!" % copy_result)
 
-        if Label.objects.count():
-            self.write_notice("Skipping labels.")
-        else:
-            copy_result = self._copy_labels()
-            self.write_success("Copied %d labels." % copy_result)
+        # if Label.objects.count():
+        #     self.write_notice("Skipping labels.")
+        # else:
+        copy_result = self._copy_labels()
+        self.write_success("Copied %d labels." % copy_result)
 
-        if Broadcast.objects.count():  # TODO: Reset primary key sequence
-            self.write_notice("Skipping broadcasts.")
-        else:
-            copy_result = self._copy_broadcasts()
-            self.write_success("Copied %d broadcasts." % copy_result)
+        # if Broadcast.objects.count():  # TODO: Reset primary key sequence
+        #     self.write_notice("Skipping broadcasts.")
+        # else:
+        copy_result = self._copy_broadcasts()
+        self.write_success("Copied %d broadcasts." % copy_result)
 
         # if Msg.objects.count():  # TODO: Reset primary key sequence
         #     self.write_notice("Skipping messages.")
