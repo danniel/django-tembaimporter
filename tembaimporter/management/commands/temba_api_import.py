@@ -280,29 +280,29 @@ class Command(BaseCommand):
         # if Broadcast.objects.count():  # TODO: Reset primary key sequence
         #     self.write_notice("Skipping broadcasts.")
         # else:
-        copy_result = self._copy_broadcasts()
-        self.write_success("Copied %d broadcasts." % copy_result)
+        # copy_result = self._copy_broadcasts()
+        # self.write_success("Copied %d broadcasts." % copy_result)
 
         # if Msg.objects.count():  # TODO: Reset primary key sequence
         #     self.write_notice("Skipping messages.")
         # else:
-        copy_result = self._copy_messages()
-        self.write_success("Copied %d messages." % copy_result)
+        # copy_result = self._copy_messages()
+        # self.write_success("Copied %d messages." % copy_result)
 
         # if ChannelEvent.objects.count():
         #     self.write_notice("Skipping channel events.")
         # else:
-        copy_result = self._copy_channel_events()
-        self.write_success("Copied %d channel events." % copy_result)
+        # copy_result = self._copy_channel_events()
+        # self.write_success("Copied %d channel events." % copy_result)
 
-        copy_result = self._copy_users()
-        self.write_success("Copied or updated %d users." % copy_result)
+        # copy_result = self._copy_users()
+        # self.write_success("Copied or updated %d users." % copy_result)
 
         # if FlowStart.objects.count():
         #     self.write_notice("Skipping flow starts.")
         # else:
-        copy_result = self._copy_flow_starts()
-        self.write_success("Copied %d flow starts." % copy_result)
+        # copy_result = self._copy_flow_starts()
+        # self.write_success("Copied %d flow starts." % copy_result)
 
         # if FlowRun.objects.count():
         #     self.write_notice("Skipping flow runs.")
