@@ -250,8 +250,8 @@ class Command(BaseCommand):
         # Copy the remaining data from the remote API
         # The order in which we copy the data is important because of object relationships
 
-        # copy_result = self._copy_groups()
-        # self.write_success("Copied %d new groups." % copy_result)
+        copy_result = self._copy_groups()
+        self.write_success("Copied %d new groups." % copy_result)
 
         # if Contact.objects.count():
         #     self.write_notice("Skipping contacts.")
