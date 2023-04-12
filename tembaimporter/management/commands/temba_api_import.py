@@ -250,32 +250,32 @@ class Command(BaseCommand):
         # Copy the remaining data from the remote API
         # The order in which we copy the data is important because of object relationships
 
-        copy_result = self._copy_groups()
-        self.write_success("Copied %d new groups." % copy_result)
+        # copy_result = self._copy_groups()
+        # self.write_success("Copied %d new groups." % copy_result)
 
         # if Contact.objects.count():
         #     self.write_notice("Skipping contacts.")
         # else:
-        copy_result = self._copy_contacts()
-        self.write_success("Copied %d contacts." % copy_result)
+        # copy_result = self._copy_contacts()
+        # self.write_success("Copied %d contacts." % copy_result)
 
         # if Archive.objects.count():  # TODO: copy the actual files?
         #     self.write_notice("Skipping archives.")
         # else:
-        copy_result = self._copy_archives()
-        self.write_success("Copied %d archives." % copy_result)
+        # copy_result = self._copy_archives()
+        # self.write_success("Copied %d archives." % copy_result)
 
         # if Channel.objects.count():  # TODO: check channel association by name
         #     self.write_notice("Skipping channels.")
         # else:
-        copy_result = self._copy_channels()
-        self.write_success("Copied %d channels. You have to set the channel type from the shell!" % copy_result)
+        # copy_result = self._copy_channels()
+        # self.write_success("Copied %d channels. You have to set the channel type from the shell!" % copy_result)
 
         # if Label.objects.count():
         #     self.write_notice("Skipping labels.")
         # else:
-        copy_result = self._copy_labels()
-        self.write_success("Copied %d labels." % copy_result)
+        # copy_result = self._copy_labels()
+        # self.write_success("Copied %d labels." % copy_result)
 
         # if Broadcast.objects.count():  # TODO: Reset primary key sequence
         #     self.write_notice("Skipping broadcasts.")
